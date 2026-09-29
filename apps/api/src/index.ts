@@ -4,6 +4,7 @@ import { entries } from './routes/entries'
 import { photos } from './routes/photos'
 import { render } from './routes/render'
 import { stats } from './routes/stats'
+import { recap } from './routes/recap'
 
 const app = new Hono<AppEnv>()
 
@@ -22,5 +23,6 @@ app.route('/api/entries', entries)
 app.route('/api/photos', photos)
 app.route('/api/render', render)
 app.route('/api/stats', stats)
+app.route('/api/recap', recap)
 
 export default app

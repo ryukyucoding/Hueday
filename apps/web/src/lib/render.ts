@@ -6,10 +6,11 @@ export type RenderParams =
   | ({ template: 'swatch'; date: string } & Common)
   | ({ template: 'compare'; date: string } & Common)
   | ({ template: 'stats'; month: string; asOf?: string } & Common)
+  | ({ template: 'recap'; month: string; asOf?: string } & Common)
 
 export function renderUrl(p: RenderParams): string {
   const q = new URLSearchParams({ template: p.template })
-  if (p.template === 'stats') {
+  if (p.template === 'stats' || p.template === 'recap') {
     q.set('month', p.month)
     if (p.asOf) q.set('asOf', p.asOf)
   } else q.set('date', p.date)

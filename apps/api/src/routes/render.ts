@@ -9,11 +9,13 @@ import { BODY_FONT, DISPLAY_FONT, collageHtml, collageTexts } from '../render/co
 import { statsHtml, statsTexts } from '../render/statsHtml'
 import { swatchHtml, swatchTexts } from '../render/swatchHtml'
 import { COMPARE_HALF, compareHtml, compareTexts, type CompareSide } from '../render/compareHtml'
+import { recapHtml, recapTexts } from '../render/recapHtml'
+import { getOrCreateRecap, loadRecapData } from '../recap'
 import { loadGoogleFont, type LoadedFont } from '../render/fonts'
 
 export const render = new Hono<AppEnv>()
 
-const TEMPLATES = ['collage', 'stats', 'swatch', 'compare'] as const
+const TEMPLATES = ['collage', 'stats', 'swatch', 'compare', 'recap'] as const
 
 type Built = { html: string; bodyText: string; dispText: string }
 type Ctx = Context<AppEnv>
@@ -129,11 +131,25 @@ async function buildCompare(c: Ctx): Promise<Built | Response> {
   return { html: compareHtml(input), bodyText: all, dispText: all }
 }
 
+async function buildRecap(c: Ctx): Promise<Built | Response> {
+  const p = parseMonthParams(c.req.query('month'), c.req.query('asOf'))
+  if (!p) return errorJson(c, 400, 'bad_month', 'month 應為 YYYY-MM（asOf 應為 YYYY-MM-DD）')
+  const userId = c.get('userId')
+  const data = await loadRecapData(c.env.DB, userId, p.month, p.asOf)
+  const r = await getOrCreateRecap(c.env, userId, p.month, data) // 有快取就直接用，不重複呼叫 Gemini
+  const { style, grain } = styleParams(c)
+  const bgSvg = storyBackgroundSvg([data.stats.palette], { mode: 'single', date: p.month, targetHex: getDailyColor(`${p.month}-01`).hex, style, grain })
+  const input = { stats: data.stats, text: r.text, bgDataUri: svgUri(bgSvg) }
+  const t = recapTexts(input)
+  const all = t.big + t.sub + t.body + t.numbers.map((n) => n.value + n.label).join('') + t.footer
+  return { html: recapHtml(input), bodyText: all, dispText: all }
+}
+
 render.get('/', async (c) => {
   const template = c.req.query('template') ?? 'collage'
   if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
 
-  const builders = { collage: buildCollage, stats: buildStats, swatch: buildSwatch, compare: buildCompare } as const
+  const builders = { collage: buildCollage, stats: buildStats, swatch: buildSwatch, compare: buildCompare, recap: buildRecap } as const
   const built = await builders[template as (typeof TEMPLATES)[number]](c)
   if (built instanceof Response) return built
 

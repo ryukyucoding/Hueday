@@ -72,7 +72,10 @@ function open(date: string) {
   <section class="page" data-testid="page-calendar">
     <header class="head">
       <button class="nav" aria-label="上個月" data-testid="prev" @click="month = shiftMonth(month, -1)">‹</button>
-      <h2 data-testid="month-title"><span>{{ title.year }}</span> {{ title.month }} 月</h2>
+      <div class="mid">
+        <h2 data-testid="month-title"><span>{{ title.year }}</span> {{ title.month }} 月</h2>
+        <button class="recap" data-testid="recap-link" @click="router.push({ name: 'recap', params: { month } })">本月回顧 ›</button>
+      </div>
       <button class="nav" aria-label="下個月" data-testid="next" @click="month = shiftMonth(month, 1)">›</button>
     </header>
 
@@ -100,6 +103,8 @@ function open(date: string) {
 
 <style scoped>
 .head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
+.mid { text-align: center; }
+.recap { border: 0; background: transparent; color: var(--ink-soft); font-size: 15px; min-height: 44px; padding: 0 12px; cursor: pointer; }
 .head h2 { font-size: 22px; }
 .head h2 span { font-weight: 500; color: var(--ink-soft); font-size: 16px; margin-right: 4px; }
 .nav { width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(43, 42, 40, 0.06); font-size: 24px; cursor: pointer; transition: background var(--ease); }
