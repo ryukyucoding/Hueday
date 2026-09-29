@@ -8,6 +8,8 @@ export type PhotoDto = {
   aiColorName: string | null
   matchesTarget: boolean | null
   subject: string | null
+  confidence: number | null
+  mock: boolean
   createdAt: number
 }
 export type EntryDto = { id: string; date: string; mode: Mode; targetColor: string | null; note: string | null; createdAt: number }

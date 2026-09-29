@@ -42,3 +42,10 @@ describe('palette', () => {
     expect(same).toBeLessThanOrEqual(12)
   })
 })
+
+import { nearestPaletteColor } from './palette'
+describe('nearestPaletteColor', () => {
+  it('色票內的顏色回傳自己', () => {
+    expect(nearestPaletteColor('#E8603C').zh).toBe('柿子橘')
+  })
+})

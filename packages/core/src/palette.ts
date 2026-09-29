@@ -1,3 +1,4 @@
+import { colorDistance } from './oklab'
 import { PALETTE, type PaletteColor } from './palette.data'
 
 export { PALETTE }
@@ -22,4 +23,15 @@ export function hashString(input: string): number {
 /** date: YYYY-MM-DD。同一天所有人得到同一色。 */
 export function getDailyColor(date: string): PaletteColor {
   return PALETTE[hashString(`hueday:${date}`) % PALETTE.length]
+}
+
+/** 色票中與指定顏色最接近的一色（OKLab 距離） */
+export function nearestPaletteColor(hex: string): PaletteColor {
+  let best = PALETTE[0]
+  let bd = Infinity
+  for (const c of PALETTE) {
+    const d = colorDistance(c.hex, hex)
+    if (d < bd) { bd = d; best = c }
+  }
+  return best
 }

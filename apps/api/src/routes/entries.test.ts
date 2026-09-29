@@ -66,4 +66,16 @@ describe('entries & photos', () => {
     const bad = await app.request('/api/entries/nope', { headers: headers('u1') }, env)
     expect(bad.status).toBe(400)
   })
+
+  it('單色日無 key 時寫入 mock 判斷；集色日不判斷', async () => {
+    const { getDailyColor } = await import('@hueday/core')
+    const date = '2025-05-06'
+    const hex = getDailyColor(date).hex
+    const r = await upload('u4', date, jpegFile(), { mode: 'single', dominantColors: JSON.stringify([hex]) })
+    const p = ((await r.json()) as any).photo
+    expect(p.mock).toBe(true)
+    expect(p.matchesTarget).toBe(true)
+    const r2 = await upload('u4', '2025-05-07', jpegFile(), { mode: 'collect', dominantColors: JSON.stringify([hex]) })
+    expect(((await r2.json()) as any).photo.matchesTarget).toBeNull()
+  })
 })

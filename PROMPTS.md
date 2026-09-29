@@ -72,7 +72,7 @@
 - [ ] 測試：純色圖回傳該色；紅藍各半的圖回傳紅與藍；各色相群組至少各 1 個測試案例
 - [ ] 上傳後照片卡片下方顯示 5 個主色小圓點
 
-### [ ] P6 Gemini Vision 顏色判斷
+### [x] P6 Gemini Vision 顏色判斷
 **要做的事**
 - `apps/api/src/gemini.ts`：呼叫 Gemini REST `models/{GEMINI_MODEL}:generateContent`，照片以 inline base64 傳入，`generationConfig.responseMimeType = "application/json"` + `responseSchema`。
 - 回傳 `{ matchesTarget: boolean, subject: string, confidence: number }`，prompt 說明「照片的主要被攝物是否屬於目標顏色（hex + 中文名）」。

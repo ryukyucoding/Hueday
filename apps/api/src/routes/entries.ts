@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { getDailyColor } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
+import { judgeWithGemini } from '../gemini'
 
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -15,6 +16,8 @@ type PhotoRow = {
   ai_color_name: string | null
   matches_target: number | null
   subject: string | null
+  ai_confidence: number | null
+  ai_mock: number
   created_at: number
 }
 
@@ -26,6 +29,8 @@ export function photoDto(p: PhotoRow) {
     aiColorName: p.ai_color_name,
     matchesTarget: p.matches_target === null ? null : p.matches_target === 1,
     subject: p.subject,
+    confidence: p.ai_confidence,
+    mock: p.ai_mock === 1,
     createdAt: p.created_at
   }
 }
@@ -85,6 +90,21 @@ entries.post('/:date/photos', async (c) => {
   await c.env.DB.prepare('INSERT INTO photos (id, entry_id, r2_key, dominant_colors, created_at) VALUES (?, ?, ?, ?, ?)')
     .bind(photoId, entry.id, r2Key, JSON.stringify(colors), now)
     .run()
+
+  // 單色日才問 Gemini；失敗只是沒有判斷結果，不影響上傳成功
+  if (entry.mode === 'single' && entry.target_color) {
+    const j = await judgeWithGemini(c.env, {
+      bytes: await file.arrayBuffer(),
+      mimeType: file.type || 'image/jpeg',
+      targetHex: entry.target_color,
+      dominantColors: colors
+    }).catch(() => null)
+    if (j) {
+      await c.env.DB.prepare('UPDATE photos SET matches_target = ?, subject = ?, ai_confidence = ?, ai_mock = ? WHERE id = ?')
+        .bind(j.matchesTarget ? 1 : 0, j.subject, j.confidence, j.mock ? 1 : 0, photoId)
+        .run()
+    }
+  }
 
   const row = (await c.env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(photoId).first<PhotoRow>())!
   return c.json({ entry: entryDto(entry), photo: photoDto(row) }, 201)
