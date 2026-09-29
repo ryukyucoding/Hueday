@@ -3,15 +3,15 @@ import { getUserId } from './api'
 type Common = { style?: 'mesh' | 'flow'; grain?: number }
 export type RenderParams =
   | ({ template: 'collage'; date: string } & Common)
+  | ({ template: 'swatch'; date: string } & Common)
   | ({ template: 'stats'; month: string; asOf?: string } & Common)
 
 export function renderUrl(p: RenderParams): string {
   const q = new URLSearchParams({ template: p.template })
-  if (p.template === 'collage') q.set('date', p.date)
-  else {
+  if (p.template === 'stats') {
     q.set('month', p.month)
     if (p.asOf) q.set('asOf', p.asOf)
-  }
+  } else q.set('date', p.date)
   if (p.style) q.set('style', p.style)
   if (p.grain !== undefined) q.set('grain', String(Math.round(p.grain)))
   return `/api/render?${q}`

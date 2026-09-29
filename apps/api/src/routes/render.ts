@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { computeStats, donutSvg, getDailyColor, storyBackgroundSvg, type GradientStyle } from '@hueday/core'
+import { SWATCH_GRADIENT_HEIGHT, STORY_WIDTH, computeStats, donutSvg, getDailyColor, storyBackgroundSvg, type GradientStyle } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
 import { toBase64 } from '../gemini'
@@ -7,11 +7,12 @@ import { DATE_RE } from './entries'
 import { loadStatsEntries, parseMonthParams } from './stats'
 import { BODY_FONT, DISPLAY_FONT, collageHtml, collageTexts } from '../render/collageHtml'
 import { statsHtml, statsTexts } from '../render/statsHtml'
+import { swatchHtml, swatchTexts } from '../render/swatchHtml'
 import { loadGoogleFont, type LoadedFont } from '../render/fonts'
 
 export const render = new Hono<AppEnv>()
 
-const TEMPLATES = ['collage', 'stats'] as const
+const TEMPLATES = ['collage', 'stats', 'swatch'] as const
 
 type Built = { html: string; bodyText: string; dispText: string }
 type Ctx = Context<AppEnv>
@@ -72,11 +73,38 @@ async function buildStats(c: Ctx): Promise<Built | Response> {
   }
 }
 
+async function buildSwatch(c: Ctx): Promise<Built | Response> {
+  const date = c.req.query('date') ?? ''
+  if (!DATE_RE.test(date)) return errorJson(c, 400, 'bad_date', '日期格式應為 YYYY-MM-DD')
+  const userId = c.get('userId')
+  const entry = await c.env.DB.prepare('SELECT id, mode FROM entries WHERE user_id = ? AND date = ?').bind(userId, date).first<{ id: string; mode: 'single' | 'collect' }>()
+  const rows = entry
+    ? (await c.env.DB.prepare('SELECT r2_key, dominant_colors, ai_color_name FROM photos WHERE entry_id = ? ORDER BY created_at ASC LIMIT 4').bind(entry.id).all<{ r2_key: string; dominant_colors: string; ai_color_name: string | null }>()).results
+    : []
+
+  const photos: { dataUri: string; caption: string; colors: string[] }[] = []
+  for (const r of rows) {
+    const obj = await c.env.PHOTOS.get(r.r2_key)
+    if (!obj) continue
+    const mime = obj.httpMetadata?.contentType ?? 'image/jpeg'
+    photos.push({ dataUri: `data:${mime};base64,${toBase64(await obj.arrayBuffer())}`, caption: r.ai_color_name ?? '', colors: JSON.parse(r.dominant_colors) as string[] })
+  }
+
+  const target = getDailyColor(date)
+  const { style, grain } = styleParams(c)
+  // 單色日：漸層以今日色為主（同色系深淺），照片主色不混入，色票才像「這個顏色」
+  const bgSvg = storyBackgroundSvg([], { mode: 'single', date, targetHex: target.hex, style, grain }, STORY_WIDTH, SWATCH_GRADIENT_HEIGHT)
+  const input = { date, hex: target.hex, zhName: target.zh, enName: target.en, bgDataUri: svgUri(bgSvg), photos }
+  const t = swatchTexts(input)
+  const all = t.kicker + t.zh + t.en + t.hex + t.date + t.captions.join('') + t.footer
+  return { html: swatchHtml(input), bodyText: all, dispText: all }
+}
+
 render.get('/', async (c) => {
   const template = c.req.query('template') ?? 'collage'
   if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
 
-  const built = template === 'stats' ? await buildStats(c) : await buildCollage(c)
+  const built = template === 'stats' ? await buildStats(c) : template === 'swatch' ? await buildSwatch(c) : await buildCollage(c)
   if (built instanceof Response) return built
 
   // 字型只下載用到的字，並快取在 KV
