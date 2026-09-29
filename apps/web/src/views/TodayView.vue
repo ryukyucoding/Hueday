@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { HUE_GROUPS, HUE_GROUP_LABELS, getDailyColor, readableTextColor } from '@hueday/core'
+import { HUE_GROUPS, HUE_GROUP_LABELS, classifyHue, getDailyColor, readableTextColor } from '@hueday/core'
 import { api } from '../lib/api'
-import { compressImage } from '../lib/image'
+import { compressImage, sampleDominantColors } from '../lib/image'
 import { getEntry, uploadPhoto, type PhotoDto } from '../lib/entries'
 import PhotoTile from '../components/PhotoTile.vue'
 import { todayString } from '../lib/date'
@@ -30,7 +30,9 @@ async function onPick(e: Event) {
   for (const f of files) {
     uploading.value++
     try {
-      const { photo } = await uploadPhoto(date, await compressImage(f), mode.value)
+      const blob = await compressImage(f)
+      const colors = await sampleDominantColors(blob)
+      const { photo } = await uploadPhoto(date, blob, mode.value, colors)
       photos.value.push(photo)
     } catch {
       uploadError.value = '上傳失敗，請再試一次'
@@ -55,7 +57,15 @@ const modes: { id: Mode; label: string }[] = [
   { id: 'single', label: '單色日' },
   { id: 'collect', label: '集色日' }
 ]
-const hueSlots = computed(() => HUE_GROUPS.map((g) => ({ id: g, label: HUE_GROUP_LABELS[g], hex: null as string | null })))
+// 集色日：每個色相群組取第一張照片中屬於該群組的主色來填色
+const hueSlots = computed(() => {
+  const found = new Map<string, string>()
+  for (const p of photos.value) for (const hex of p.dominantColors) {
+    const g = classifyHue(hex)
+    if (!found.has(g)) found.set(g, hex)
+  }
+  return HUE_GROUPS.map((g) => ({ id: g, label: HUE_GROUP_LABELS[g], hex: found.get(g) ?? null }))
+})
 </script>
 
 <template>
@@ -80,7 +90,7 @@ const hueSlots = computed(() => HUE_GROUPS.map((g) => ({ id: g, label: HUE_GROUP
     <template v-else>
       <p class="tip">今天不限顏色，把遇見的每一種顏色都收進來吧。</p>
       <div class="grid" data-testid="collect-grid">
-        <div v-for="s in hueSlots" :key="s.id" class="slot" :style="s.hex ? { background: s.hex } : undefined">
+        <div v-for="s in hueSlots" :key="s.id" class="slot" :style="s.hex ? { background: s.hex, color: readableTextColor(s.hex), borderStyle: 'solid', borderColor: 'transparent' } : undefined">
           <span>{{ s.label }}</span>
         </div>
       </div>

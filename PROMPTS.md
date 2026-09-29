@@ -60,7 +60,7 @@
 
 ## 核心
 
-### [ ] P5 抽色與色相分類（core）
+### [x] P5 抽色與色相分類（core）
 **要做的事**
 - `extractDominantColors(pixels: Uint8ClampedArray, k = 5): string[]`：k-means（固定亂數種子，最多 20 次迭代），忽略 alpha < 128 的像素，依群集大小排序回傳 hex。
 - `classifyHue(hex): HueGroup`，群組：red, orange, yellow, green, blue, purple, pink, brown, neutral（黑白灰；用 HSL 的飽和度 / 明度門檻判斷）。

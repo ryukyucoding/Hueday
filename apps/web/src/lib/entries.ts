@@ -15,10 +15,11 @@ export type EntryResponse = { entry: EntryDto | null; photos: PhotoDto[] }
 
 export const getEntry = (date: string) => api<EntryResponse>(`/api/entries/${date}`)
 
-export async function uploadPhoto(date: string, blob: Blob, mode: Mode): Promise<{ entry: EntryDto; photo: PhotoDto }> {
+export async function uploadPhoto(date: string, blob: Blob, mode: Mode, dominantColors: string[] = []): Promise<{ entry: EntryDto; photo: PhotoDto }> {
   const fd = new FormData()
   fd.set('file', blob, 'photo.jpg')
   fd.set('mode', mode)
+  fd.set('dominantColors', JSON.stringify(dominantColors))
   return api(`/api/entries/${date}/photos`, { method: 'POST', body: fd })
 }
 

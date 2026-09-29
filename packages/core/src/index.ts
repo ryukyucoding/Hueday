@@ -5,3 +5,6 @@ export function hello(): string {
 export * from './palette'
 export * from './hue'
 export * from './color'
+export * from './oklab'
+export * from './extract'
+export * from './hueClassify'

@@ -1,3 +1,5 @@
+import { extractDominantColors } from '@hueday/core'
+
 export const MAX_EDGE = 1600
 export const JPEG_QUALITY = 0.85
 
@@ -22,5 +24,22 @@ export async function compressImage(file: File): Promise<Blob> {
     return blob ?? file
   } catch {
     return file
+  }
+}
+
+/** 縮到 64×64 取像素後交給 core 抽出主色；失敗回傳空陣列 */
+export async function sampleDominantColors(blob: Blob): Promise<string[]> {
+  try {
+    const bitmap = await createImageBitmap(blob)
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return []
+    ctx.drawImage(bitmap, 0, 0, 64, 64)
+    bitmap.close()
+    return extractDominantColors(ctx.getImageData(0, 0, 64, 64).data, 5)
+  } catch {
+    return []
   }
 }
