@@ -24,6 +24,23 @@ export type MonthStats = {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
+/** 把各照片的主色依排名加權（越靠前占比越大）成像素，再跑 k-means 取 k 個主色 */
+export function weightedPalette(photos: { dominantColors: string[] }[], k = 5): string[] {
+  const pixels: number[] = []
+  for (const p of photos) {
+    p.dominantColors.forEach((hex, i) => {
+      const [r, g, b] = hexToRgb(hex)
+      for (let n = 0; n < Math.max(1, 5 - i); n++) pixels.push(r, g, b, 255)
+    })
+  }
+  return pixels.length ? extractDominantColors(new Uint8ClampedArray(pixels), k) : []
+}
+
+/** 某一天的主色 = 最大的那一群顏色（k=1 只會得到平均混色，所以取 5 群中最大者）；沒有照片回傳 null */
+export function dayMainColor(photos: { dominantColors: string[] }[]): string | null {
+  return weightedPalette(photos, 5)[0] ?? null
+}
+
 export function addDays(date: string, n: number): string {
   const [y, m, d] = date.split('-').map(Number)
   const t = new Date(Date.UTC(y, m - 1, d + n))
@@ -56,20 +73,16 @@ export function computeStats(entries: StatsEntry[], month: string, asOf: string 
 
   const counts = Object.fromEntries(HUE_GROUPS.map((g) => [g, 0])) as Record<HueGroup, number>
   const buckets = new Set<string>()
-  const pixels: number[] = []
   let total = 0
   for (const p of photos) {
-    p.dominantColors.forEach((hex, i) => {
+    p.dominantColors.forEach((hex) => {
       counts[classifyHue(hex)]++
       total++
       buckets.add(nearestPaletteColor(hex).hex)
-      // 越靠前的主色（占比越大）權重越高
-      const [r, g, b] = hexToRgb(hex)
-      for (let k = 0; k < Math.max(1, 5 - i); k++) pixels.push(r, g, b, 255)
     })
   }
   const hueShare = Object.fromEntries(HUE_GROUPS.map((g) => [g, total ? counts[g] / total : 0])) as Record<HueGroup, number>
-  const palette = pixels.length ? extractDominantColors(new Uint8ClampedArray(pixels), 5) : []
+  const palette = weightedPalette(photos, 5)
 
   return {
     month,

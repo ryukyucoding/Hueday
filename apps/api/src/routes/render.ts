@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { SWATCH_GRADIENT_HEIGHT, STORY_WIDTH, computeStats, donutSvg, getDailyColor, storyBackgroundSvg, yearAgo, type GradientStyle } from '@hueday/core'
+import { SWATCH_GRADIENT_HEIGHT, STORY_WIDTH, computeStats, dayMainColor, donutSvg, getDailyColor, storyBackgroundSvg, yearAgo, type GradientStyle } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
 import { toBase64 } from '../gemini'
@@ -10,12 +10,13 @@ import { statsHtml, statsTexts } from '../render/statsHtml'
 import { swatchHtml, swatchTexts } from '../render/swatchHtml'
 import { COMPARE_HALF, compareHtml, compareTexts, type CompareSide } from '../render/compareHtml'
 import { recapHtml, recapTexts } from '../render/recapHtml'
+import { posterHtml, posterTexts } from '../render/posterHtml'
 import { getOrCreateRecap, loadRecapData } from '../recap'
 import { loadGoogleFont, type LoadedFont } from '../render/fonts'
 
 export const render = new Hono<AppEnv>()
 
-const TEMPLATES = ['collage', 'stats', 'swatch', 'compare', 'recap'] as const
+const TEMPLATES = ['collage', 'stats', 'swatch', 'compare', 'recap', 'palette'] as const
 
 type Built = { html: string; bodyText: string; dispText: string }
 type Ctx = Context<AppEnv>
@@ -145,11 +146,26 @@ async function buildRecap(c: Ctx): Promise<Built | Response> {
   return { html: recapHtml(input), bodyText: all, dispText: all }
 }
 
+async function buildPalette(c: Ctx): Promise<Built | Response> {
+  const p = parseMonthParams(c.req.query('month'), c.req.query('asOf'))
+  if (!p) return errorJson(c, 400, 'bad_month', 'month 應為 YYYY-MM（asOf 應為 YYYY-MM-DD）')
+  const entries = await loadStatsEntries(c.env.DB, c.get('userId'))
+  const colors: Record<string, string> = {}
+  for (const e of entries) {
+    if (!e.date.startsWith(p.month + '-')) continue
+    const main = dayMainColor(e.photos)
+    if (main) colors[e.date] = main
+  }
+  const t = posterTexts(p.month)
+  const all = t.big + t.year + t.footer + 'SMTWTFS' + '0123456789'
+  return { html: posterHtml({ month: p.month, colors }), bodyText: all, dispText: all }
+}
+
 render.get('/', async (c) => {
   const template = c.req.query('template') ?? 'collage'
   if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
 
-  const builders = { collage: buildCollage, stats: buildStats, swatch: buildSwatch, compare: buildCompare, recap: buildRecap } as const
+  const builders = { collage: buildCollage, stats: buildStats, swatch: buildSwatch, compare: buildCompare, recap: buildRecap, palette: buildPalette } as const
   const built = await builders[template as (typeof TEMPLATES)[number]](c)
   if (built instanceof Response) return built
 

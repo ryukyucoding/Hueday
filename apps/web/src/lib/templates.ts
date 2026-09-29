@@ -4,7 +4,8 @@ export const TEMPLATES = [
   { id: 'collage', label: 'Color Hunt 拼貼' },
   { id: 'stats', label: '數據卡' },
   { id: 'swatch', label: '單色日色票' },
-  { id: 'compare', label: '去年 vs 今年' }
+  { id: 'compare', label: '去年 vs 今年' },
+  { id: 'palette', label: '月色票' }
 ] as const
 
 export type TemplateId = (typeof TEMPLATES)[number]['id']
@@ -18,6 +19,7 @@ export function monthOf(date: string): string {
 
 export function templateParams(id: TemplateId, ctx: ShareContext): RenderParams {
   const common = { style: ctx.style, grain: ctx.grain }
+  if (id === 'palette') return { template: 'palette', month: monthOf(ctx.date), asOf: ctx.asOf, ...common }
   if (id === 'stats') return { template: 'stats', month: monthOf(ctx.date), asOf: ctx.asOf, ...common }
   return { template: id, date: ctx.date, ...common }
 }
@@ -26,6 +28,7 @@ export function templateFilename(id: TemplateId, date: string): string {
   if (id === 'stats') return `hueday-${monthOf(date)}-stats.png`
   if (id === 'swatch') return `hueday-${date}-swatch.png`
   if (id === 'compare') return `hueday-${date}-compare.png`
+  if (id === 'palette') return `hueday-${monthOf(date)}-palette.png`
   return `hueday-${date}.png`
 }
 
