@@ -1,27 +1,35 @@
-import { Hono } from 'hono'
-import { getDailyColor, storyBackgroundSvg, type GradientStyle } from '@hueday/core'
+import { Hono, type Context } from 'hono'
+import { computeStats, donutSvg, getDailyColor, storyBackgroundSvg, type GradientStyle } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
 import { toBase64 } from '../gemini'
 import { DATE_RE } from './entries'
+import { loadStatsEntries, parseMonthParams } from './stats'
 import { BODY_FONT, DISPLAY_FONT, collageHtml, collageTexts } from '../render/collageHtml'
+import { statsHtml, statsTexts } from '../render/statsHtml'
 import { loadGoogleFont, type LoadedFont } from '../render/fonts'
 
 export const render = new Hono<AppEnv>()
 
-const TEMPLATES = ['collage'] as const
+const TEMPLATES = ['collage', 'stats'] as const
 
-render.get('/', async (c) => {
-  const template = c.req.query('template') ?? 'collage'
-  if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
+type Built = { html: string; bodyText: string; dispText: string }
+type Ctx = Context<AppEnv>
+
+const svgUri = (svg: string) => `data:image/svg+xml;base64,${btoa(svg)}`
+
+function styleParams(c: Ctx): { style?: GradientStyle; grain?: number } {
+  const styleQ = c.req.query('style')
+  const grainQ = Number(c.req.query('grain'))
+  return {
+    style: styleQ === 'mesh' || styleQ === 'flow' ? styleQ : undefined,
+    grain: c.req.query('grain') !== undefined && Number.isFinite(grainQ) ? Math.max(0, Math.min(100, grainQ)) : undefined
+  }
+}
+
+async function buildCollage(c: Ctx): Promise<Built | Response> {
   const date = c.req.query('date') ?? ''
   if (!DATE_RE.test(date)) return errorJson(c, 400, 'bad_date', '日期格式應為 YYYY-MM-DD')
-
-  const styleQ = c.req.query('style')
-  const style: GradientStyle | undefined = styleQ === 'mesh' || styleQ === 'flow' ? styleQ : undefined
-  const grainQ = Number(c.req.query('grain'))
-  const grain = c.req.query('grain') !== undefined && Number.isFinite(grainQ) ? Math.max(0, Math.min(100, grainQ)) : undefined
-
   const userId = c.get('userId')
   const entry = await c.env.DB.prepare('SELECT id, mode FROM entries WHERE user_id = ? AND date = ?').bind(userId, date).first<{ id: string; mode: 'single' | 'collect' }>()
   const rows = entry
@@ -37,23 +45,51 @@ render.get('/', async (c) => {
   }
 
   const target = getDailyColor(date)
+  const { style, grain } = styleParams(c)
   const bgSvg = storyBackgroundSvg(photos.map((p) => p.dominantColors), { mode: entry?.mode ?? 'single', date, targetHex: target.hex, style, grain })
-  const input = { date, zhName: target.zh, enName: target.en, bgDataUri: `data:image/svg+xml;base64,${btoa(bgSvg)}`, photos }
+  const input = { date, zhName: target.zh, enName: target.en, bgDataUri: svgUri(bgSvg), photos }
+  const t = collageTexts(input)
+  return {
+    html: collageHtml(input),
+    bodyText: t.zh + t.empty + t.footer + t.sub + t.big + t.en,
+    dispText: t.big + t.sub + t.en + t.footer
+  }
+}
+
+async function buildStats(c: Ctx): Promise<Built | Response> {
+  const p = parseMonthParams(c.req.query('month'), c.req.query('asOf'))
+  if (!p) return errorJson(c, 400, 'bad_month', 'month 應為 YYYY-MM（asOf 應為 YYYY-MM-DD）')
+  const s = computeStats(await loadStatsEntries(c.env.DB, c.get('userId')), p.month, p.asOf)
+  const { style, grain } = styleParams(c)
+  // 背景：本月主色漸層；沒有資料時用當月 1 號的今日色
+  const bgSvg = storyBackgroundSvg([s.palette], { mode: 'single', date: p.month, targetHex: getDailyColor(`${p.month}-01`).hex, style, grain })
+  const t = statsTexts(s)
+  const all = t.title + t.subtitle + t.numbers.map((n) => n.value + n.label).join('') + t.legend.map((l) => l.label + l.pct).join('') + t.mainLabel + t.mainEn + t.footer + t.empty
+  return {
+    html: statsHtml({ stats: s, bgDataUri: svgUri(bgSvg), donutDataUri: svgUri(donutSvg(s.hueShare, 520)) }),
+    bodyText: all,
+    dispText: all
+  }
+}
+
+render.get('/', async (c) => {
+  const template = c.req.query('template') ?? 'collage'
+  if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
+
+  const built = template === 'stats' ? await buildStats(c) : await buildCollage(c)
+  if (built instanceof Response) return built
 
   // 字型只下載用到的字，並快取在 KV
-  const texts = collageTexts(input)
-  const bodyText = texts.zh + texts.empty + texts.footer + texts.sub + texts.big + texts.en
-  const dispText = texts.big + texts.sub + texts.en + texts.footer
   let fonts: LoadedFont[] = []
   try {
-    fonts = await Promise.all([loadGoogleFont(BODY_FONT, 700, bodyText, c.env.CACHE), loadGoogleFont(DISPLAY_FONT, 700, dispText, c.env.CACHE)])
+    fonts = await Promise.all([loadGoogleFont(BODY_FONT, 700, built.bodyText, c.env.CACHE), loadGoogleFont(DISPLAY_FONT, 700, built.dispText, c.env.CACHE)])
   } catch {
     return errorJson(c, 500, 'font_failed', '字型載入失敗，請稍後再試')
   }
 
   try {
     const { ImageResponse } = await import('workers-og')
-    return new ImageResponse(collageHtml(input), { width: 1080, height: 1920, format: 'png', fonts }) as unknown as Response
+    return new ImageResponse(built.html, { width: 1080, height: 1920, format: 'png', fonts }) as unknown as Response
   } catch {
     return errorJson(c, 500, 'render_failed', '產圖失敗，請稍後再試')
   }

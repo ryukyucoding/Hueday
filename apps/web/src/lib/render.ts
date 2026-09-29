@@ -1,9 +1,17 @@
 import { getUserId } from './api'
 
-export type RenderParams = { template: 'collage'; date: string; style?: 'mesh' | 'flow'; grain?: number }
+type Common = { style?: 'mesh' | 'flow'; grain?: number }
+export type RenderParams =
+  | ({ template: 'collage'; date: string } & Common)
+  | ({ template: 'stats'; month: string; asOf?: string } & Common)
 
 export function renderUrl(p: RenderParams): string {
-  const q = new URLSearchParams({ template: p.template, date: p.date })
+  const q = new URLSearchParams({ template: p.template })
+  if (p.template === 'collage') q.set('date', p.date)
+  else {
+    q.set('month', p.month)
+    if (p.asOf) q.set('asOf', p.asOf)
+  }
   if (p.style) q.set('style', p.style)
   if (p.grain !== undefined) q.set('grain', String(Math.round(p.grain)))
   return `/api/render?${q}`

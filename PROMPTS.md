@@ -137,7 +137,7 @@
 **完成條件**
 - [ ] 桌面瀏覽器走下載流程；支援的瀏覽器走分享流程（以 feature detection 判斷）
 
-### [ ] P12 模板二「Strava 風數據卡」
+### [x] P12 模板二「Strava 風數據卡」
 **要做的事**
 - core `computeStats(entries)`：連續記錄天數、本月收集色數、各色相群組佔比、本月主色（全月主色 k-means）。附測試。
 - `GET /api/stats?month=YYYY-MM`。
