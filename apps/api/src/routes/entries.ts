@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getDailyColor } from '@hueday/core'
+import { getDailyColor, pickDistinctColors } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
 import { judgeWithGemini, nameColor } from '../gemini'
@@ -40,6 +40,55 @@ export function entryDto(e: EntryRow) {
 }
 
 export const entries = new Hono<AppEnv>()
+
+export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+export const MAX_NOTE_LENGTH = 500
+
+/** 月曆用摘要：每天只回傳主色與張數，不回整張照片 */
+entries.get('/', async (c) => {
+  const month = c.req.query('month') ?? ''
+  if (!MONTH_RE.test(month)) return errorJson(c, 400, 'bad_month', 'month 應為 YYYY-MM')
+  const { results } = await c.env.DB.prepare(
+    `SELECT e.date AS date, e.mode AS mode, e.note AS note, p.dominant_colors AS dc
+       FROM entries e LEFT JOIN photos p ON p.entry_id = e.id
+      WHERE e.user_id = ? AND e.date >= ? AND e.date <= ?
+      ORDER BY e.date ASC, p.created_at ASC`
+  )
+    .bind(c.get('userId'), `${month}-01`, `${month}-31`)
+    .all<{ date: string; mode: string; note: string | null; dc: string | null }>()
+  const days = new Map<string, { date: string; mode: string; colors: string[]; photoCount: number; hasNote: boolean }>()
+  const raw = new Map<string, string[]>()
+  for (const r of results) {
+    let d = days.get(r.date)
+    if (!d) {
+      days.set(r.date, (d = { date: r.date, mode: r.mode, colors: [], photoCount: 0, hasNote: !!r.note }))
+      raw.set(r.date, [])
+    }
+    if (r.dc !== null) {
+      d.photoCount++
+      raw.get(r.date)!.push(...(JSON.parse(r.dc) as string[]))
+    }
+  }
+  for (const [date, d] of days) d.colors = pickDistinctColors(raw.get(date)!, 4)
+  return c.json({ month, days: [...days.values()] })
+})
+
+/** 儲存備註；當天還沒有 Entry（沒拍照）時也會建立 */
+entries.put('/:date/note', async (c) => {
+  const date = c.req.param('date')
+  if (!DATE_RE.test(date)) return errorJson(c, 400, 'bad_date', '日期格式應為 YYYY-MM-DD')
+  const body = (await c.req.json().catch(() => null)) as { note?: unknown } | null
+  if (!body || typeof body.note !== 'string') return errorJson(c, 400, 'bad_note', '缺少 note')
+  const note = body.note.trim()
+  if (Array.from(note).length > MAX_NOTE_LENGTH) return errorJson(c, 400, 'note_too_long', `備註最多 ${MAX_NOTE_LENGTH} 字`)
+  const userId = c.get('userId')
+  await c.env.DB.prepare('INSERT OR IGNORE INTO entries (id, user_id, date, mode, target_color, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(crypto.randomUUID(), userId, date, 'single', getDailyColor(date).hex, Date.now())
+    .run()
+  await c.env.DB.prepare('UPDATE entries SET note = ? WHERE user_id = ? AND date = ?').bind(note === '' ? null : note, userId, date).run()
+  const entry = (await c.env.DB.prepare('SELECT * FROM entries WHERE user_id = ? AND date = ?').bind(userId, date).first<EntryRow>())!
+  return c.json({ entry: entryDto(entry) })
+})
 
 entries.get('/:date', async (c) => {
   const date = c.req.param('date')

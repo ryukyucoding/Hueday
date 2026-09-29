@@ -39,3 +39,17 @@ export function photoObjectUrl(url: string): Promise<string> {
   }
   return p
 }
+
+export type DaySummary = { date: string; mode: Mode; colors: string[]; photoCount: number; hasNote: boolean }
+export type MonthSummary = { month: string; days: DaySummary[] }
+
+export const getMonth = (month: string) => api<MonthSummary>(`/api/entries?month=${month}`)
+
+export async function saveNote(date: string, note: string): Promise<EntryDto> {
+  const r = await api<{ entry: EntryDto }>(`/api/entries/${date}/note`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note })
+  })
+  return r.entry
+}

@@ -82,3 +82,58 @@ describe('entries & photos', () => {
     expect(p2.aiColorName).toBeTruthy()
   })
 })
+
+describe('calendar summary & notes', () => {
+  it('GET /api/entries?month= 回傳每天主色與張數（不含照片本身）', async () => {
+    await upload('c1', '2025-07-01', jpegFile(), { dominantColors: JSON.stringify(['#FF0000', '#0000FF']) })
+    await upload('c1', '2025-07-01', jpegFile(), { dominantColors: JSON.stringify(['#FF0101', '#00FF00']) })
+    await upload('c1', '2025-07-15', jpegFile(), { dominantColors: JSON.stringify(['#00FF00']) })
+    await upload('c1', '2025-08-01', jpegFile(), { dominantColors: JSON.stringify(['#00FF00']) })
+    const res = await app.request('/api/entries?month=2025-07', { headers: headers('c1') }, env)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as any
+    expect(body.days.map((d: any) => d.date)).toEqual(['2025-07-01', '2025-07-15'])
+    expect(body.days[0].photoCount).toBe(2)
+    expect(body.days[0].colors).toEqual(['#FF0000', '#0000FF', '#00FF00'])
+    expect(body.days[0].photos).toBeUndefined()
+  })
+
+  it('其他使用者看不到；month 格式錯誤回 400', async () => {
+    const other = (await (await app.request('/api/entries?month=2025-07', { headers: headers('c2') }, env)).json()) as any
+    expect(other.days).toEqual([])
+    expect((await app.request('/api/entries?month=2025-13', { headers: headers('c1') }, env)).status).toBe(400)
+    expect((await app.request('/api/entries', { headers: headers('c1') }, env)).status).toBe(400)
+  })
+
+  it('PUT note：可儲存、可更新、可清空，重新讀取仍在；沒有 Entry 時會建立', async () => {
+    await upload('n1', '2025-09-01', jpegFile())
+    const put = (uid: string, date: string, note: unknown) =>
+      app.request(`/api/entries/${date}/note`, { method: 'PUT', body: JSON.stringify({ note }), headers: { ...headers(uid), 'Content-Type': 'application/json' } }, env)
+    expect((await put('n1', '2025-09-01', '  今天很開心  ')).status).toBe(200)
+    let got = (await (await app.request('/api/entries/2025-09-01', { headers: headers('n1') }, env)).json()) as any
+    expect(got.entry.note).toBe('今天很開心')
+    expect(got.photos).toHaveLength(1)
+    await put('n1', '2025-09-01', '改了')
+    got = (await (await app.request('/api/entries/2025-09-01', { headers: headers('n1') }, env)).json()) as any
+    expect(got.entry.note).toBe('改了')
+    await put('n1', '2025-09-01', '')
+    got = (await (await app.request('/api/entries/2025-09-01', { headers: headers('n1') }, env)).json()) as any
+    expect(got.entry.note).toBeNull()
+
+    expect((await put('n2', '2025-09-02', '只有備註')).status).toBe(200)
+    const created = (await (await app.request('/api/entries/2025-09-02', { headers: headers('n2') }, env)).json()) as any
+    expect(created.entry.note).toBe('只有備註')
+    expect(created.photos).toEqual([])
+  })
+
+  it('PUT note 驗證：缺少 note、太長、日期錯誤；別人的備註不受影響', async () => {
+    const put = (uid: string, date: string, body: unknown) =>
+      app.request(`/api/entries/${date}/note`, { method: 'PUT', body: JSON.stringify(body), headers: { ...headers(uid), 'Content-Type': 'application/json' } }, env)
+    expect((await put('n3', '2025-09-03', {})).status).toBe(400)
+    expect((await put('n3', '2025-09-03', { note: 'x'.repeat(501) })).status).toBe(400)
+    expect((await put('n3', 'bad', { note: 'a' })).status).toBe(400)
+    await put('n3', '2025-09-04', { note: 'mine' })
+    const other = (await (await app.request('/api/entries/2025-09-04', { headers: headers('n4') }, env)).json()) as any
+    expect(other.entry).toBeNull()
+  })
+})

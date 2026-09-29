@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
 import { toast } from './lib/toast'
+
+const route = useRoute()
 const tabs = [
   { to: '/', label: '今天', icon: '●' },
   { to: '/calendar', label: '日曆', icon: '▦' },
@@ -13,7 +16,7 @@ const tabs = [
     <main class="content"><RouterView /></main>
     <Transition name="toast"><div v-if="toast.message" :key="toast.id" class="toast" role="status">{{ toast.message }}</div></Transition>
     <nav class="tabbar">
-      <RouterLink v-for="t in tabs" :key="t.to" :to="t.to" class="tab" active-class="active" exact-active-class="active">
+      <RouterLink v-for="t in tabs" :key="t.to" :to="t.to" class="tab" :class="{ active: route.meta.tab === t.to }">
         <span class="ico">{{ t.icon }}</span><span>{{ t.label }}</span>
       </RouterLink>
     </nav>
