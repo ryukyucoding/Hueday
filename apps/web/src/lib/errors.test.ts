@@ -51,6 +51,7 @@ describe('aiWarningMessage', () => {
     expect(aiWarningMessage(['ai_error'])).toContain('暫時無法使用')
     expect(aiWarningMessage(['ai_error', 'ai_timeout'])).toContain('太慢')
     expect(aiWarningMessage(['ai_timeout', 'ai_quota'])).toContain('額度')
+    expect(aiWarningMessage(['ai_rate_limited'])).toContain('太頻繁')
     expect(aiWarningMessage(['something_else'])).toBeNull()
   })
 })

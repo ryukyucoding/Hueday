@@ -53,6 +53,7 @@ export function aiWarningMessage(warnings: string[] | undefined | null): string 
   if (!warnings?.length) return null
   if (warnings.includes('ai_quota')) return 'AI 的額度暫時用完了，先用示意結果，稍後再試'
   if (warnings.includes('ai_timeout')) return 'AI 回應太慢，先用示意結果'
+  if (warnings.includes('ai_rate_limited')) return 'AI 使用太頻繁了，先用示意結果，稍後再試'
   if (warnings.some((w) => w.startsWith('ai_'))) return 'AI 暫時無法使用，先用示意結果'
   return null
 }

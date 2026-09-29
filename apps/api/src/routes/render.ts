@@ -14,6 +14,8 @@ import { posterHtml, posterTexts } from '../render/posterHtml'
 import { getOrCreateRecap, loadRecapData } from '../recap'
 import { loadGoogleFont, type LoadedFont } from '../render/fonts'
 import { getSimulation } from '../simulate'
+import { enforce } from '../rateLimit'
+import { cacheRequest, dataVersion, pngResponse, storeResponse, type RenderCache } from '../render/renderCache'
 
 export const render = new Hono<AppEnv>()
 
@@ -163,9 +165,25 @@ async function buildPalette(c: Ctx): Promise<Built | Response> {
 }
 
 render.get('/', async (c) => {
-  if (getSimulation(c) === 'render-fail') return errorJson(c, 500, 'render_failed', '產圖失敗，請稍後再試')
+  const sim = getSimulation(c)
+  if (sim === 'render-fail') return errorJson(c, 500, 'render_failed', '產圖失敗，請稍後再試')
   const template = c.req.query('template') ?? 'collage'
   if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
+
+  // 快取：key = 使用者 + 模板 + 全部參數 + 資料版本。資料一變版本就變，舊快取自然不會再被用到。
+  // （Cache API 在 *.workers.dev 網域不會生效，需要自訂網域；本地 wrangler dev 可用。）
+  const userId = c.get('userId')
+  const params = new URL(c.req.url).searchParams
+  const cache = typeof caches !== 'undefined' ? ((caches as unknown as { default?: RenderCache }).default ?? null) : null
+  const key = cacheRequest(userId, template, params, await dataVersion(c.env, userId, template, params))
+  if (cache && !sim) {
+    const hit = await cache.match(key).catch(() => undefined)
+    if (hit?.body) return pngResponse(hit.body, 'hit')
+  }
+
+  // 只有真的要產圖（沒命中快取）才算進產圖額度
+  const limited = await enforce(c, 'render')
+  if (limited) return limited
 
   const builders = { collage: buildCollage, stats: buildStats, swatch: buildSwatch, compare: buildCompare, recap: buildRecap, palette: buildPalette } as const
   const built = await builders[template as (typeof TEMPLATES)[number]](c)
@@ -181,7 +199,19 @@ render.get('/', async (c) => {
 
   try {
     const { ImageResponse } = await import('workers-og')
-    return new ImageResponse(built.html, { width: 1080, height: 1920, format: 'png', fonts }) as unknown as Response
+    const res = new ImageResponse(built.html, { width: 1080, height: 1920, format: 'png', fonts }) as unknown as Response
+    const png = await res.arrayBuffer()
+    // satori 遇到不合法的版面會靜默回傳 200 + 空內容：當成失敗，而且不快取
+    if (!res.ok || png.byteLength === 0) return errorJson(c, 500, 'render_failed', '產圖失敗，請稍後再試')
+    if (cache && !sim) {
+      const put = cache.put(key, storeResponse(png)).catch(() => {})
+      try {
+        c.executionCtx.waitUntil(put)
+      } catch {
+        await put // 沒有 ExecutionContext（例如測試環境）
+      }
+    }
+    return pngResponse(png, 'miss')
   } catch {
     return errorJson(c, 500, 'render_failed', '產圖失敗，請稍後再試')
   }

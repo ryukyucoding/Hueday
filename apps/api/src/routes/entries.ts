@@ -1,11 +1,14 @@
 import { Hono } from 'hono'
 import { getDailyColor, pickDistinctColors } from '@hueday/core'
-import type { AppEnv } from '../types'
+import type { AppEnv, Bindings } from '../types'
 import { errorJson } from '../errors'
 import { judgeWithGemini, nameColor } from '../gemini'
 import { getSimulation, simulatedFetch, withSimulatedKey } from '../simulate'
+import { enforce, hit } from '../rateLimit'
 
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
+/** 只接受這些圖片格式（HEIC/HEIF 是 iPhone 原檔；前端通常已壓成 JPEG） */
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'] as const
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 type EntryRow = { id: string; user_id: string; date: string; mode: string; target_color: string | null; note: string | null; created_at: number }
@@ -106,16 +109,18 @@ entries.post('/:date/photos', async (c) => {
   if (!DATE_RE.test(date)) return errorJson(c, 400, 'bad_date', '日期格式應為 YYYY-MM-DD')
   const declared = Number(c.req.header('Content-Length') ?? 0)
   if (declared > MAX_PHOTO_BYTES + 64 * 1024) return errorJson(c, 413, 'too_large', '照片超過 10MB')
+  const limited = await enforce(c, 'upload') // 每分鐘上傳次數（先擋，避免白白解析大檔案）
+  if (limited) return limited
 
   const form = await c.req.formData().catch(() => null)
   const file = form?.get('file') as File | string | null | undefined
   if (!form || !(file instanceof File)) return errorJson(c, 400, 'no_file', '缺少 file 欄位')
   if (file.size > MAX_PHOTO_BYTES) return errorJson(c, 413, 'too_large', '照片超過 10MB')
-  if (!file.type.startsWith('image/')) return errorJson(c, 415, 'bad_type', '只接受圖片')
+  if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.type.toLowerCase())) return errorJson(c, 415, 'bad_type', '只接受 JPEG、PNG、WebP、HEIC 圖片')
 
   const sim = getSimulation(c)
   if (sim === 'upload-fail') return errorJson(c, 500, 'upload_failed', '上傳失敗，請再試一次')
-  const geminiEnv = withSimulatedKey(c.env, sim)
+  let geminiEnv: Pick<Bindings, 'GEMINI_API_KEY' | 'GEMINI_MODEL'> = withSimulatedKey(c.env, sim)
   const geminiFetch = simulatedFetch(sim)
   const warnings = new Set<string>() // AI 暫時失敗（額度/逾時/其他）：照片仍然上傳成功，只是提醒使用者
   const onFail = (r: string) => warnings.add(`ai_${r}`)
@@ -147,6 +152,16 @@ entries.post('/:date/photos', async (c) => {
   await c.env.DB.prepare('INSERT INTO photos (id, entry_id, r2_key, dominant_colors, created_at) VALUES (?, ?, ?, ?, ?)')
     .bind(photoId, entry.id, r2Key, JSON.stringify(colors), now)
     .run()
+
+  // Gemini 每分鐘呼叫額度：單色日要問 2 次（判斷 + 色名），集色日 1 次。超過就改用示意結果，
+  // 而不是讓上傳失敗（AI 只是加分項）。沒有 key（mock 模式）時根本不呼叫 Gemini，也就不扣額度。
+  if (geminiEnv.GEMINI_API_KEY) {
+    const cost = entry.mode === 'single' && entry.target_color ? 2 : 1
+    if (!(await hit(c.env.CACHE, userId, 'gemini', cost)).ok) {
+      geminiEnv = { GEMINI_MODEL: c.env.GEMINI_MODEL }
+      warnings.add('ai_rate_limited')
+    }
+  }
 
   // 單色日才問 Gemini；失敗只是沒有判斷結果，不影響上傳成功
   if (entry.mode === 'single' && entry.target_color) {

@@ -223,7 +223,7 @@
 **完成條件**
 - [ ] 模擬各錯誤（可用 query 參數或 dev flag 觸發）皆有對應 UI
 
-### [ ] P21 Rate limit 與快取
+### [x] P21 Rate limit 與快取
 **要做的事**
 - KV 計數器：每個 userId 每分鐘上傳 ≤ 10、Gemini 呼叫 ≤ 20、render ≤ 30，超過回 429 + `Retry-After`。
 - 圖片大小上限 10MB、只接受 image/jpeg、png、webp、heic。
