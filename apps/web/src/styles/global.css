@@ -1,0 +1,21 @@
+:root {
+  --bg: #faf7f2;
+  --ink: #2b2a28;
+  --ink-soft: #7a766f;
+  --line: rgba(43, 42, 40, 0.1);
+  --radius: 16px;
+  --shadow: 0 2px 10px rgba(43, 42, 40, 0.06);
+  --ease: 200ms ease-out;
+  --font-body: 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --max-w: 480px;
+  --tabbar-h: 64px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); -webkit-tap-highlight-color: transparent; }
+body::before { /* 底片顆粒 */
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; margin: 0; }
+button { font: inherit; color: inherit; }

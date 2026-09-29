@@ -7,7 +7,7 @@
 
 ## 地基
 
-### [ ] P1 專案骨架 + PWA
+### [x] P1 專案骨架 + PWA
 **要做的事**
 - 建立 npm workspaces monorepo：`apps/web`、`apps/api`、`packages/core`（結構見 CLAUDE.md）。
 - `apps/web`：Vue 3 + Vite + TypeScript + Vue Router，加 `vite-plugin-pwa`（manifest：name「拾色 Hueday」、short_name「Hueday」、theme_color `#FAF7F2`、display standalone、192/512 icon，icon 先用 SVG 產生一個漸層圓點）。
