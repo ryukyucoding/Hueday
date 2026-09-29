@@ -75,7 +75,10 @@ describe('entries & photos', () => {
     const p = ((await r.json()) as any).photo
     expect(p.mock).toBe(true)
     expect(p.matchesTarget).toBe(true)
+    expect(p.aiColorName).toBeTruthy()
     const r2 = await upload('u4', '2025-05-07', jpegFile(), { mode: 'collect', dominantColors: JSON.stringify([hex]) })
-    expect(((await r2.json()) as any).photo.matchesTarget).toBeNull()
+    const p2 = ((await r2.json()) as any).photo
+    expect(p2.matchesTarget).toBeNull()
+    expect(p2.aiColorName).toBeTruthy()
   })
 })

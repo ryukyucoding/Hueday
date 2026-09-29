@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { getDailyColor } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
-import { judgeWithGemini } from '../gemini'
+import { judgeWithGemini, nameColor } from '../gemini'
 
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -105,6 +105,11 @@ entries.post('/:date/photos', async (c) => {
         .run()
     }
   }
+
+  // 每張照片都要有色名（Gemini 失敗時用示意色名）
+  const nameColorHex = colors[0] ?? entry.target_color ?? '#888888'
+  const named = await nameColor(c.env, { bytes: await file.arrayBuffer(), mimeType: file.type || 'image/jpeg', dominantColor: nameColorHex }, photoId)
+  await c.env.DB.prepare('UPDATE photos SET ai_color_name = ? WHERE id = ?').bind(named.name, photoId).run()
 
   const row = (await c.env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(photoId).first<PhotoRow>())!
   return c.json({ entry: entryDto(entry), photo: photoDto(row) }, 201)

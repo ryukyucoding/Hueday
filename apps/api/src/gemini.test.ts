@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildJudgeRequest, judgeWithGemini, mockJudge, parseJudgement, toBase64 } from './gemini'
+import { buildJudgeRequest, buildNameRequest, judgeWithGemini, mockJudge, nameColor, parseJudgement, parseName, toBase64 } from './gemini'
 
 const input = { bytes: new Uint8Array([1, 2, 3]).buffer, mimeType: 'image/jpeg', targetHex: '#E8603C', dominantColors: ['#E8603C'] }
 const okBody = (o: unknown) => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(o) }] } }] })
@@ -58,5 +58,26 @@ describe('mock', () => {
   })
   it('顏色差很遠時判定不符', () => {
     expect(mockJudge({ targetHex: '#E8603C', dominantColors: ['#1D3557'] }).matchesTarget).toBe(false)
+  })
+})
+
+describe('color name', () => {
+  const nameInput = { bytes: input.bytes, mimeType: 'image/jpeg', dominantColor: '#E8603C' }
+  it('request schema 限制長度', () => {
+    const b = buildNameRequest(nameInput)
+    expect(b.generationConfig.responseSchema.properties.colorName).toEqual({ type: 'STRING', minLength: 4, maxLength: 10 })
+    expect((b.contents[0].parts[0] as any).text).toContain('4 到 10')
+  })
+  it('超過 10 字會截斷', () => {
+    expect(parseName(okBody({ colorName: '傍晚捷運站月台上等車時看見的那一抹橘' }))).toBe('傍晚捷運站月台上等車')
+  })
+  it('Gemini 成功用 AI 色名，失敗或無 key 用示意色名（都有值）', async () => {
+    const env = { GEMINI_API_KEY: 'k', GEMINI_MODEL: 'm' }
+    const ok = await nameColor(env, nameInput, 's', (async () => new Response(JSON.stringify(okBody({ colorName: '傍晚捷運站的橘' })))) as any)
+    expect(ok).toEqual({ name: '傍晚捷運站的橘', mock: false })
+    const bad = await nameColor(env, nameInput, 's', (async () => new Response('x', { status: 500 })) as any)
+    expect(bad.mock).toBe(true)
+    expect(bad.name.length).toBeGreaterThan(0)
+    expect((await nameColor({ GEMINI_MODEL: 'm' }, nameInput, 's')).mock).toBe(true)
   })
 })

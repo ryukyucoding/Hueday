@@ -29,6 +29,7 @@ onMounted(async () => {
     <div class="tile" :class="{ pending: pending || !src }">
       <img v-if="src" :src="src" alt="" />
     </div>
+    <p v-if="photo?.aiColorName" class="name" data-testid="color-name">{{ photo.aiColorName }}</p>
     <p v-if="verdict" class="verdict" data-testid="verdict">{{ verdict }}</p>
     <div v-if="photo?.dominantColors.length" class="dots" data-testid="dots">
       <i v-for="c in photo.dominantColors" :key="c" :style="{ background: c }" />
@@ -38,6 +39,7 @@ onMounted(async () => {
 
 <style scoped>
 .card { margin: 0; }
+.name { margin: 6px 0 0; font-size: 13px; color: var(--ink); text-align: center; line-height: 1.4; }
 .verdict { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); text-align: center; line-height: 1.4; }
 .dots { display: flex; gap: 4px; justify-content: center; margin-top: 6px; }
 .dots i { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(43, 42, 40, 0.12); }
