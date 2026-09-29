@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { SWATCH_GRADIENT_HEIGHT, STORY_WIDTH, computeStats, donutSvg, getDailyColor, storyBackgroundSvg, type GradientStyle } from '@hueday/core'
+import { SWATCH_GRADIENT_HEIGHT, STORY_WIDTH, computeStats, donutSvg, getDailyColor, storyBackgroundSvg, yearAgo, type GradientStyle } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
 import { toBase64 } from '../gemini'
@@ -8,11 +8,12 @@ import { loadStatsEntries, parseMonthParams } from './stats'
 import { BODY_FONT, DISPLAY_FONT, collageHtml, collageTexts } from '../render/collageHtml'
 import { statsHtml, statsTexts } from '../render/statsHtml'
 import { swatchHtml, swatchTexts } from '../render/swatchHtml'
+import { COMPARE_HALF, compareHtml, compareTexts, type CompareSide } from '../render/compareHtml'
 import { loadGoogleFont, type LoadedFont } from '../render/fonts'
 
 export const render = new Hono<AppEnv>()
 
-const TEMPLATES = ['collage', 'stats', 'swatch'] as const
+const TEMPLATES = ['collage', 'stats', 'swatch', 'compare'] as const
 
 type Built = { html: string; bodyText: string; dispText: string }
 type Ctx = Context<AppEnv>
@@ -100,11 +101,40 @@ async function buildSwatch(c: Ctx): Promise<Built | Response> {
   return { html: swatchHtml(input), bodyText: all, dispText: all }
 }
 
+async function buildCompare(c: Ctx): Promise<Built | Response> {
+  const date = c.req.query('date') ?? ''
+  if (!DATE_RE.test(date)) return errorJson(c, 400, 'bad_date', '日期格式應為 YYYY-MM-DD')
+  const userId = c.get('userId')
+  const { style, grain } = styleParams(c)
+
+  async function side(d: string, label: string): Promise<CompareSide> {
+    const entry = await c.env.DB.prepare('SELECT id, mode FROM entries WHERE user_id = ? AND date = ?').bind(userId, d).first<{ id: string; mode: 'single' | 'collect' }>()
+    const rows = entry
+      ? (await c.env.DB.prepare('SELECT r2_key, dominant_colors FROM photos WHERE entry_id = ? ORDER BY created_at ASC LIMIT 3').bind(entry.id).all<{ r2_key: string; dominant_colors: string }>()).results
+      : []
+    const photos: { dataUri: string; colors: string[] }[] = []
+    for (const r of rows) {
+      const obj = await c.env.PHOTOS.get(r.r2_key)
+      if (!obj) continue
+      photos.push({ dataUri: `data:${obj.httpMetadata?.contentType ?? 'image/jpeg'};base64,${toBase64(await obj.arrayBuffer())}`, colors: JSON.parse(r.dominant_colors) as string[] })
+    }
+    const target = getDailyColor(d)
+    const bg = storyBackgroundSvg(photos.map((p) => p.colors), { mode: entry?.mode ?? 'single', date: d, targetHex: target.hex, style, grain }, STORY_WIDTH, COMPARE_HALF)
+    return { date: d, label, zhName: target.zh, bgDataUri: svgUri(bg), photos, hasRecord: !!entry }
+  }
+
+  const input = { last: await side(yearAgo(date), 'LAST YEAR'), now: await side(date, 'THIS YEAR') }
+  const t = compareTexts(input)
+  const all = [t.last, t.now].map((x) => x.label + x.big + x.sub + x.zh).join('') + t.pill + t.empty
+  return { html: compareHtml(input), bodyText: all, dispText: all }
+}
+
 render.get('/', async (c) => {
   const template = c.req.query('template') ?? 'collage'
   if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
 
-  const built = template === 'stats' ? await buildStats(c) : template === 'swatch' ? await buildSwatch(c) : await buildCollage(c)
+  const builders = { collage: buildCollage, stats: buildStats, swatch: buildSwatch, compare: buildCompare } as const
+  const built = await builders[template as (typeof TEMPLATES)[number]](c)
   if (built instanceof Response) return built
 
   // 字型只下載用到的字，並快取在 KV

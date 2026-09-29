@@ -23,3 +23,10 @@ export function monthGrid(month: string, weekStart: 0 | 1 = 0): (string | null)[
   while (cells.length % 7 !== 0) cells.push(null)
   return cells
 }
+
+/** 一年前的同一天；閏日（2/29）回到 2/28 */
+export function yearAgo(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(y - 1, m, 0)).getUTCDate()
+  return `${y - 1}-${pad(m)}-${pad(Math.min(d, lastDay))}`
+}

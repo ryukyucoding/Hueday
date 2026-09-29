@@ -32,3 +32,13 @@ describe('calendar', () => {
     expect(monthGrid('2026-09', 0).slice(0, 3)).toEqual([null, null, '2026-09-01'])
   })
 })
+
+import { yearAgo } from './calendar'
+describe('yearAgo', () => {
+  it('一般日期、跨年、閏日', () => {
+    expect(yearAgo('2026-09-29')).toBe('2025-09-29')
+    expect(yearAgo('2026-01-01')).toBe('2025-01-01')
+    expect(yearAgo('2024-02-29')).toBe('2023-02-28')
+    expect(yearAgo('2025-02-28')).toBe('2024-02-28')
+  })
+})

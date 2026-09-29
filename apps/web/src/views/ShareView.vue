@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import CollagePreview from '../components/CollagePreview.vue'
 import TemplateSlide from '../components/TemplateSlide.vue'
 import { getEntry, type PhotoDto } from '../lib/entries'
@@ -10,6 +11,7 @@ import { showToast } from '../lib/toast'
 import { TEMPLATES, defaultStyle, templateFilename, templateParams, type GradientChoice, type TemplateId } from '../lib/templates'
 import { getDailyColor } from '@hueday/core'
 
+const route = useRoute()
 const date = todayString()
 const ready = ref(false)
 const photos = ref<PhotoDto[]>([])
@@ -32,7 +34,11 @@ onMounted(async () => {
   } catch {
     /* 沒有連線時仍顯示模板，但產圖會失敗 */
   }
+  // /share?template=compare 直接停在指定模板（例如從「去年的今天」卡片進來）
+  const wanted = TEMPLATES.findIndex((t) => t.id === route.query.template)
+  if (wanted > 0) activeIdx.value = wanted
   ready.value = true
+  if (wanted > 0) go(wanted, 'instant')
 })
 
 let raf = 0
@@ -46,9 +52,9 @@ function onScroll() {
 }
 onBeforeUnmount(() => cancelAnimationFrame(raf))
 
-async function go(i: number) {
+async function go(i: number, behavior: ScrollBehavior = 'smooth') {
   await nextTick()
-  scroller.value?.scrollTo({ left: i * scroller.value.clientWidth, behavior: 'smooth' })
+  scroller.value?.scrollTo({ left: i * scroller.value.clientWidth, behavior })
 }
 
 async function onShare() {

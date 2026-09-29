@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { compressImage, sampleDominantColors } from '../lib/image'
 import { getEntry, uploadPhoto, type PhotoDto } from '../lib/entries'
 import PhotoTile from '../components/PhotoTile.vue'
+import LastYearCard from '../components/LastYearCard.vue'
 import { todayString } from '../lib/date'
 import { gradientDataUri, pickDistinct } from '../lib/gradient'
 import { loadMode, saveMode, type Mode } from '../lib/mode'
@@ -78,6 +79,7 @@ const hueSlots = computed(() => {
 <template>
   <section class="page" data-testid="page-today">
     <div class="bg" :style="{ backgroundImage: bg }" data-testid="bg" aria-hidden="true" />
+    <LastYearCard :date="date" />
     <p class="date">{{ date }}</p>
 
     <div class="seg" role="tablist">

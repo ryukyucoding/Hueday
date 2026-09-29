@@ -3,7 +3,8 @@ import type { RenderParams } from './render'
 export const TEMPLATES = [
   { id: 'collage', label: 'Color Hunt 拼貼' },
   { id: 'stats', label: '數據卡' },
-  { id: 'swatch', label: '單色日色票' }
+  { id: 'swatch', label: '單色日色票' },
+  { id: 'compare', label: '去年 vs 今年' }
 ] as const
 
 export type TemplateId = (typeof TEMPLATES)[number]['id']
@@ -22,7 +23,10 @@ export function templateParams(id: TemplateId, ctx: ShareContext): RenderParams 
 }
 
 export function templateFilename(id: TemplateId, date: string): string {
-  return id === 'stats' ? `hueday-${monthOf(date)}-stats.png` : id === 'swatch' ? `hueday-${date}-swatch.png` : `hueday-${date}.png`
+  if (id === 'stats') return `hueday-${monthOf(date)}-stats.png`
+  if (id === 'swatch') return `hueday-${date}-swatch.png`
+  if (id === 'compare') return `hueday-${date}-compare.png`
+  return `hueday-${date}.png`
 }
 
 /** 依當天 Entry 的模式決定預設漸層風格：單色日 mesh、集色日 flow */

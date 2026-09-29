@@ -4,6 +4,7 @@ type Common = { style?: 'mesh' | 'flow'; grain?: number }
 export type RenderParams =
   | ({ template: 'collage'; date: string } & Common)
   | ({ template: 'swatch'; date: string } & Common)
+  | ({ template: 'compare'; date: string } & Common)
   | ({ template: 'stats'; month: string; asOf?: string } & Common)
 
 export function renderUrl(p: RenderParams): string {

@@ -3,6 +3,11 @@ let memoryId: string | null = null
 
 export function getUserId(): string {
   try {
+    // 開發用：網址帶 ?uid=xxx 就切換成該使用者（例如 npm run seed 的 seed-user），只在 dev 模式生效
+    if (import.meta.env.DEV) {
+      const forced = new URLSearchParams(location.search).get('uid')
+      if (forced) localStorage.setItem(KEY, forced)
+    }
     const saved = localStorage.getItem(KEY)
     if (saved) return saved
     const id = crypto.randomUUID()
