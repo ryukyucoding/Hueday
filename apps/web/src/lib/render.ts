@@ -1,4 +1,4 @@
-import { getUserId } from './api'
+import { apiBlob } from './api'
 
 type Common = { style?: 'mesh' | 'flow'; grain?: number }
 export type RenderParams =
@@ -21,8 +21,6 @@ export function renderUrl(p: RenderParams): string {
 }
 
 /** 取得 Worker 產出的 PNG（需要 X-User-Id，所以 fetch 成 blob）。呼叫端負責 revokeObjectURL。 */
-export async function fetchRenderBlob(p: RenderParams, signal?: AbortSignal): Promise<Blob> {
-  const res = await fetch(renderUrl(p), { headers: { 'X-User-Id': getUserId() }, signal })
-  if (!res.ok) throw new Error(`render ${res.status}`)
-  return res.blob()
+export function fetchRenderBlob(p: RenderParams, signal?: AbortSignal): Promise<Blob> {
+  return apiBlob(renderUrl(p), { signal })
 }

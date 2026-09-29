@@ -4,6 +4,16 @@ import type { Bindings } from './types'
 export const GEMINI_TIMEOUT_MS = 10_000
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models'
 
+/** Gemini 失敗的原因：額度用完（429）、逾時、其他 */
+export type GeminiFailure = 'quota' | 'timeout' | 'error'
+
+export function failureOf(res?: Response, err?: unknown): GeminiFailure {
+  if (res?.status === 429) return 'quota'
+  if (err instanceof Error && err.name === 'AbortError') return 'timeout'
+  if (err instanceof DOMException && err.name === 'AbortError') return 'timeout'
+  return 'error'
+}
+
 export type ColorJudgement = { matchesTarget: boolean; subject: string; confidence: number; mock?: boolean }
 
 export type JudgeInput = {
@@ -86,7 +96,8 @@ export function mockJudge(input: Pick<JudgeInput, 'targetHex' | 'dominantColors'
 export async function judgeWithGemini(
   env: Pick<Bindings, 'GEMINI_API_KEY' | 'GEMINI_MODEL'>,
   input: JudgeInput,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  onFail?: (reason: GeminiFailure) => void
 ): Promise<ColorJudgement | null> {
   if (!env.GEMINI_API_KEY) return mockJudge(input)
   const ctrl = new AbortController()
@@ -98,9 +109,15 @@ export async function judgeWithGemini(
       body: JSON.stringify(buildJudgeRequest(input)),
       signal: ctrl.signal
     })
-    if (!res.ok) return null
-    return parseJudgement(await res.json())
-  } catch {
+    if (!res.ok) {
+      onFail?.(failureOf(res))
+      return null
+    }
+    const j = parseJudgement(await res.json())
+    if (!j) onFail?.('error')
+    return j
+  } catch (e) {
+    onFail?.(failureOf(undefined, e))
     return null
   } finally {
     clearTimeout(timer)
@@ -155,7 +172,8 @@ export async function nameColor(
   env: Pick<Bindings, 'GEMINI_API_KEY' | 'GEMINI_MODEL'>,
   input: NameInput,
   seed: string,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  onFail?: (reason: GeminiFailure) => void
 ): Promise<{ name: string; mock: boolean }> {
   const mock = () => ({ name: mockColorName(nearestPaletteColor(input.dominantColor).zh, null, seed), mock: true })
   if (!env.GEMINI_API_KEY) return mock()
@@ -169,8 +187,10 @@ export async function nameColor(
       signal: ctrl.signal
     })
     const name = res.ok ? parseName(await res.json()) : null
+    if (!name) onFail?.(res.ok ? 'error' : failureOf(res))
     return name ? { name, mock: false } : mock()
-  } catch {
+  } catch (e) {
+    onFail?.(failureOf(undefined, e))
     return mock()
   } finally {
     clearTimeout(timer)

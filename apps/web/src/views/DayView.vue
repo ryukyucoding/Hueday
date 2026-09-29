@@ -4,26 +4,33 @@ import { useRoute, useRouter } from 'vue-router'
 import { getDailyColor, readableTextColor } from '@hueday/core'
 import PhotoTile from '../components/PhotoTile.vue'
 import { getEntry, saveNote, type EntryResponse } from '../lib/entries'
-import { showToast } from '../lib/toast'
+import { showError, showToast } from '../lib/toast'
+import { friendlyMessage } from '../lib/errors'
 
 const route = useRoute()
 const router = useRouter()
 const date = computed(() => String(route.params.date))
 const color = computed(() => getDailyColor(date.value))
 const data = ref<EntryResponse | null>(null)
-const failed = ref(false)
+const errorMsg = ref('')
+const loading = ref(true)
 const note = ref('')
 const saved = ref('')
 const saving = ref(false)
 
-onMounted(async () => {
+async function load() {
+  loading.value = true
+  errorMsg.value = ''
   try {
     data.value = await getEntry(date.value)
     note.value = saved.value = data.value.entry?.note ?? ''
-  } catch {
-    failed.value = true
+  } catch (e) {
+    errorMsg.value = friendlyMessage(e)
+  } finally {
+    loading.value = false
   }
-})
+}
+onMounted(load)
 
 const dirty = computed(() => note.value.trim() !== saved.value)
 
@@ -35,8 +42,8 @@ async function save() {
     saved.value = e.note ?? ''
     note.value = saved.value
     showToast('已儲存')
-  } catch {
-    showToast('儲存失敗，請再試一次')
+  } catch (e) {
+    showError(friendlyMessage(e, 'save'), save) // 備註內容還在輸入框裡，重試不會遺失
   } finally {
     saving.value = false
   }
@@ -52,7 +59,13 @@ async function save() {
       <span>{{ color.zh }}</span><small>{{ color.hex }}</small>
     </div>
 
-    <p v-if="failed" class="empty">無法載入這一天</p>
+    <div v-if="loading" class="photos" data-testid="day-skeleton">
+      <PhotoTile v-for="n in 3" :key="n" pending />
+    </div>
+    <div v-else-if="errorMsg" class="inline-err" data-testid="day-error">
+      <span>{{ errorMsg }}</span>
+      <button @click="load">重試</button>
+    </div>
     <template v-else-if="data">
       <div v-if="data.photos.length" class="photos" data-testid="day-photos">
         <PhotoTile v-for="p in data.photos" :key="p.id" :photo="p" />
@@ -73,6 +86,8 @@ async function save() {
 .chip small { font-family: var(--font-display); opacity: 0.8; font-size: 15px; }
 .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .empty { color: var(--ink-soft); }
+.inline-err { display: flex; align-items: center; gap: 12px; color: var(--ink-soft); font-size: 15px; }
+.inline-err button { min-height: 44px; padding: 0 18px; border: 1.5px solid var(--line); border-radius: 999px; background: transparent; font-size: 15px; cursor: pointer; }
 .label { display: block; margin: 24px 0 6px; color: var(--ink-soft); font-size: 15px; }
 textarea { width: 100%; border: 1.5px solid var(--line); border-radius: var(--radius); background: rgba(255, 255, 255, 0.6); padding: 12px 14px; font: inherit; font-size: 16px; color: var(--ink); resize: vertical; }
 textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }

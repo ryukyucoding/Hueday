@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local --port 8787",
+    "dev": "wrangler dev --local --port 8787 --var ALLOW_SIMULATE:1",
     "build": "tsc --noEmit && wrangler deploy --dry-run --outdir dist",
     "test": "vitest run",
     "migrate:local": "wrangler d1 migrations apply DB --local",

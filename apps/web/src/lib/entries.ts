@@ -17,7 +17,7 @@ export type EntryResponse = { entry: EntryDto | null; photos: PhotoDto[] }
 
 export const getEntry = (date: string) => api<EntryResponse>(`/api/entries/${date}`)
 
-export async function uploadPhoto(date: string, blob: Blob, mode: Mode, dominantColors: string[] = []): Promise<{ entry: EntryDto; photo: PhotoDto }> {
+export async function uploadPhoto(date: string, blob: Blob, mode: Mode, dominantColors: string[] = []): Promise<{ entry: EntryDto; photo: PhotoDto; warnings: string[] }> {
   const fd = new FormData()
   fd.set('file', blob, 'photo.jpg')
   fd.set('mode', mode)

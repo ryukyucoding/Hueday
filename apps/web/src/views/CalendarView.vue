@@ -5,37 +5,41 @@ import { monthGrid, readableTextColor, shiftMonth } from '@hueday/core'
 import { getMonth, type DaySummary } from '../lib/entries'
 import { todayString } from '../lib/date'
 import { cellGradientUri } from '../lib/gradient'
+import { friendlyMessage } from '../lib/errors'
 
 const router = useRouter()
 const today = todayString()
 const month = ref(today.slice(0, 7))
 const cache = ref<Record<string, Map<string, DaySummary>>>({})
 const loading = ref(false)
-const failed = ref(false)
+const errorMsg = ref('')
 
-async function load(m: string) {
+/** quiet：預載前後月份失敗時不打擾使用者 */
+async function load(m: string, quiet = false) {
   if (cache.value[m]) return
-  loading.value = true
-  failed.value = false
+  if (!quiet) {
+    loading.value = true
+    errorMsg.value = ''
+  }
   try {
     const r = await getMonth(m)
     cache.value = { ...cache.value, [m]: new Map(r.days.map((d) => [d.date, d])) }
-  } catch {
-    failed.value = true
+  } catch (e) {
+    if (!quiet) errorMsg.value = friendlyMessage(e)
   } finally {
-    loading.value = false
+    if (!quiet) loading.value = false
   }
 }
 
 // 目前月份載入後，順手預載前後一個月，切換月份時不用等
 watch(month, async (m) => {
   await load(m)
-  load(shiftMonth(m, -1))
-  load(shiftMonth(m, 1))
+  load(shiftMonth(m, -1), true)
+  load(shiftMonth(m, 1), true)
 }, { immediate: false })
 onMounted(async () => {
   await load(month.value)
-  load(shiftMonth(month.value, -1))
+  load(shiftMonth(month.value, -1), true)
 })
 
 const days = computed(() => cache.value[month.value] ?? new Map<string, DaySummary>())
@@ -80,9 +84,10 @@ function open(date: string) {
     </header>
 
     <div class="wd"><span v-for="w in weekdays" :key="w">{{ w }}</span></div>
-    <div class="grid" :class="{ busy: loading && !cache[month] }" data-testid="grid">
+    <div class="grid" data-testid="grid">
       <template v-for="(c, i) in cells" :key="i">
         <span v-if="!c" class="blank" />
+        <span v-else-if="!cache[month]" class="day sk" data-testid="day-skeleton" />
         <button
           v-else
           class="day"
@@ -97,7 +102,10 @@ function open(date: string) {
         </button>
       </template>
     </div>
-    <p v-if="failed" class="note">無法載入這個月份</p>
+    <div v-if="errorMsg && !cache[month]" class="inline-err" data-testid="calendar-error">
+      <span>{{ errorMsg }}</span>
+      <button @click="load(month)">重試</button>
+    </div>
   </section>
 </template>
 
@@ -113,7 +121,10 @@ function open(date: string) {
 .nav:active { background: rgba(43, 42, 40, 0.14); }
 .wd { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; color: var(--ink-soft); font-size: 15px; margin-bottom: 6px; }
 .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; transition: opacity var(--ease); }
-.grid.busy { opacity: 0.4; }
+.day.sk { display: block; border-style: solid; border-color: transparent; background: rgba(43, 42, 40, 0.06); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.55; } }
+.inline-err { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; color: var(--ink-soft); font-size: 15px; }
+.inline-err button { min-height: 44px; padding: 0 18px; border: 1.5px solid var(--line); border-radius: 999px; background: transparent; font-size: 15px; cursor: pointer; }
 .blank { aspect-ratio: 1; }
 .day { aspect-ratio: 1; border: 1.5px dashed var(--line); border-radius: 10px; background: transparent; color: var(--ink-soft); font-size: 15px; padding: 4px 0 0 6px; text-align: left; cursor: pointer; background-size: cover; background-position: center; transition: transform var(--ease); min-height: 44px; }
 .day.has { border: 0; box-shadow: var(--shadow); }

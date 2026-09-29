@@ -3,6 +3,7 @@ import { getDailyColor, pickDistinctColors } from '@hueday/core'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
 import { judgeWithGemini, nameColor } from '../gemini'
+import { getSimulation, simulatedFetch, withSimulatedKey } from '../simulate'
 
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -112,6 +113,13 @@ entries.post('/:date/photos', async (c) => {
   if (file.size > MAX_PHOTO_BYTES) return errorJson(c, 413, 'too_large', '照片超過 10MB')
   if (!file.type.startsWith('image/')) return errorJson(c, 415, 'bad_type', '只接受圖片')
 
+  const sim = getSimulation(c)
+  if (sim === 'upload-fail') return errorJson(c, 500, 'upload_failed', '上傳失敗，請再試一次')
+  const geminiEnv = withSimulatedKey(c.env, sim)
+  const geminiFetch = simulatedFetch(sim)
+  const warnings = new Set<string>() // AI 暫時失敗（額度/逾時/其他）：照片仍然上傳成功，只是提醒使用者
+  const onFail = (r: string) => warnings.add(`ai_${r}`)
+
   const userId = c.get('userId')
   const mode = form.get('mode') === 'collect' ? 'collect' : 'single'
   let colors: string[] = []
@@ -142,12 +150,12 @@ entries.post('/:date/photos', async (c) => {
 
   // 單色日才問 Gemini；失敗只是沒有判斷結果，不影響上傳成功
   if (entry.mode === 'single' && entry.target_color) {
-    const j = await judgeWithGemini(c.env, {
-      bytes: await file.arrayBuffer(),
-      mimeType: file.type || 'image/jpeg',
-      targetHex: entry.target_color,
-      dominantColors: colors
-    }).catch(() => null)
+    const j = await judgeWithGemini(
+      geminiEnv,
+      { bytes: await file.arrayBuffer(), mimeType: file.type || 'image/jpeg', targetHex: entry.target_color, dominantColors: colors },
+      geminiFetch,
+      onFail
+    ).catch(() => null)
     if (j) {
       await c.env.DB.prepare('UPDATE photos SET matches_target = ?, subject = ?, ai_confidence = ?, ai_mock = ? WHERE id = ?')
         .bind(j.matchesTarget ? 1 : 0, j.subject, j.confidence, j.mock ? 1 : 0, photoId)
@@ -157,9 +165,9 @@ entries.post('/:date/photos', async (c) => {
 
   // 每張照片都要有色名（Gemini 失敗時用示意色名）
   const nameColorHex = colors[0] ?? entry.target_color ?? '#888888'
-  const named = await nameColor(c.env, { bytes: await file.arrayBuffer(), mimeType: file.type || 'image/jpeg', dominantColor: nameColorHex }, photoId)
+  const named = await nameColor(geminiEnv, { bytes: await file.arrayBuffer(), mimeType: file.type || 'image/jpeg', dominantColor: nameColorHex }, photoId, geminiFetch, onFail)
   await c.env.DB.prepare('UPDATE photos SET ai_color_name = ? WHERE id = ?').bind(named.name, photoId).run()
 
   const row = (await c.env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(photoId).first<PhotoRow>())!
-  return c.json({ entry: entryDto(entry), photo: photoDto(row) }, 201)
+  return c.json({ entry: entryDto(entry), photo: photoDto(row), warnings: [...warnings] }, 201)
 })

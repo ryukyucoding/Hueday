@@ -1,6 +1,6 @@
 import { api } from './api'
 
-export type RecapResponse = { month: string; text: string; mock: boolean; cached: boolean }
+export type RecapResponse = { month: string; text: string; mock: boolean; cached: boolean; degraded?: 'quota' | 'timeout' | 'error' | null }
 
 /** 取得（或產生）月總結；同月只會產生一次，force 可強制重產 */
 export const fetchRecap = (month: string, opts: { force?: boolean; asOf?: string } = {}) => {

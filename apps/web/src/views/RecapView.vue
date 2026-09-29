@@ -5,6 +5,7 @@ import { fetchRecap, recapFilename, type RecapResponse } from '../lib/recap'
 import { fetchRenderBlob } from '../lib/render'
 import { shareOrDownload } from '../lib/share'
 import { showToast } from '../lib/toast'
+import { aiWarningMessage, friendlyMessage } from '../lib/errors'
 import { todayString } from '../lib/date'
 
 const route = useRoute()
@@ -17,7 +18,7 @@ const recap = ref<RecapResponse | null>(null)
 const pngUrl = ref('')
 const pngBlob = ref<Blob | null>(null)
 const loading = ref(true)
-const failed = ref(false)
+const errorMsg = ref('')
 const sharing = ref(false)
 
 function setPng(blob: Blob | null) {
@@ -28,13 +29,14 @@ function setPng(blob: Blob | null) {
 
 async function load(force = false) {
   loading.value = true
-  failed.value = false
+  errorMsg.value = ''
   try {
     recap.value = await fetchRecap(month.value, { force, asOf: asOf.value })
+    if (recap.value.degraded) showToast(aiWarningMessage([`ai_${recap.value.degraded}`]) ?? '', 4000) // AI 暫時失敗：顯示的是示意文字
     // 圖片使用剛產生（或快取）的文字，不會再呼叫一次 Gemini
     setPng(await fetchRenderBlob({ template: 'recap', month: month.value, asOf: asOf.value }))
-  } catch {
-    failed.value = true
+  } catch (e) {
+    errorMsg.value = friendlyMessage(e, 'render')
   } finally {
     loading.value = false
   }
@@ -61,7 +63,10 @@ async function onShare() {
     <button class="back" @click="router.push('/calendar')">‹ 日曆</button>
     <h2>{{ month }} 回顧</h2>
 
-    <p v-if="failed" class="msg" data-testid="recap-error">暫時無法產生回顧，請稍後再試。</p>
+    <div v-if="errorMsg" class="msg" data-testid="recap-error">
+      <p>{{ errorMsg }}</p>
+      <button class="ghost retry" data-testid="recap-retry" @click="load()">重試</button>
+    </div>
     <template v-else>
       <p v-if="recap" class="text" data-testid="recap-text">{{ recap.text }}</p>
       <p v-if="recap?.mock" class="hint">（示意文字：尚未設定 AI 金鑰）</p>
@@ -92,6 +97,7 @@ h2 { font-size: 24px; margin: 2px 0 12px; }
 .actions { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
 .actions button { min-height: 48px; padding: 0 24px; border-radius: 999px; font-size: 16px; cursor: pointer; transition: opacity var(--ease); }
 .ghost { border: 1.5px solid var(--line); background: transparent; }
+.retry { min-height: 48px; padding: 0 24px; border-radius: 999px; font-size: 16px; cursor: pointer; }
 .share { border: 0; background: var(--ink); color: var(--bg); min-width: 120px; }
 .actions button:disabled { opacity: 0.35; cursor: default; }
 @keyframes pulse { 50% { opacity: 0.55; } }

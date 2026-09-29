@@ -8,6 +8,8 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      // 離線時：預先快取的 App 外殼照常開啟（各頁自己顯示離線狀態）；API 請求不可被換成 index.html
+      workbox: { navigateFallback: '/index.html', navigateFallbackDenylist: [/^\/api\//] },
       includeAssets: ['icon.svg'],
       manifest: {
         name: '拾色 Hueday',

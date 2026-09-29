@@ -13,6 +13,7 @@ import { recapHtml, recapTexts } from '../render/recapHtml'
 import { posterHtml, posterTexts } from '../render/posterHtml'
 import { getOrCreateRecap, loadRecapData } from '../recap'
 import { loadGoogleFont, type LoadedFont } from '../render/fonts'
+import { getSimulation } from '../simulate'
 
 export const render = new Hono<AppEnv>()
 
@@ -162,6 +163,7 @@ async function buildPalette(c: Ctx): Promise<Built | Response> {
 }
 
 render.get('/', async (c) => {
+  if (getSimulation(c) === 'render-fail') return errorJson(c, 500, 'render_failed', '產圖失敗，請稍後再試')
   const template = c.req.query('template') ?? 'collage'
   if (!(TEMPLATES as readonly string[]).includes(template)) return errorJson(c, 400, 'bad_template', `未知的模板：${template}`)
 

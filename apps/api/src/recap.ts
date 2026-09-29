@@ -1,5 +1,5 @@
 import { HUE_GROUPS, HUE_GROUP_LABELS, computeStats, fitRecap, isValidRecap, mockRecapText, nearestPaletteColor, type MonthStats, type RecapFacts } from '@hueday/core'
-import { GEMINI_TIMEOUT_MS } from './gemini'
+import { GEMINI_TIMEOUT_MS, failureOf, type GeminiFailure } from './gemini'
 import { loadStatsEntries } from './routes/stats'
 import type { Bindings } from './types'
 
@@ -99,7 +99,8 @@ export async function generateRecap(
   env: Pick<Bindings, 'GEMINI_API_KEY' | 'GEMINI_MODEL'>,
   facts: RecapFacts,
   notes: string[],
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  onFail?: (reason: GeminiFailure) => void
 ): Promise<RecapResult> {
   const mock = (): RecapResult => ({ text: mockRecapText(facts), mock: true })
   if (!env.GEMINI_API_KEY || facts.photoCount === 0) return mock()
@@ -113,8 +114,10 @@ export async function generateRecap(
       signal: ctrl.signal
     })
     const text = res.ok ? parseRecap(await res.json()) : null
+    if (!text) onFail?.(res.ok ? 'error' : failureOf(res))
     return text ? { text, mock: false } : mock()
-  } catch {
+  } catch (e) {
+    onFail?.(failureOf(undefined, e))
     return mock()
   } finally {
     clearTimeout(timer)
@@ -130,13 +133,15 @@ export async function getOrCreateRecap(
   month: string,
   data: RecapData,
   opts: { force?: boolean; fetchImpl?: typeof fetch } = {}
-): Promise<RecapResult & { cached: boolean }> {
+): Promise<RecapResult & { cached: boolean; degraded: GeminiFailure | null }> {
   const key = recapKey(userId, month)
   if (!opts.force) {
     const hit = await env.CACHE.get<RecapResult>(key, 'json').catch(() => null)
-    if (hit?.text) return { ...hit, cached: true }
+    if (hit?.text) return { ...hit, cached: true, degraded: null }
   }
-  const made = await generateRecap(env, data.facts, data.notes, opts.fetchImpl)
-  await env.CACHE.put(key, JSON.stringify(made)).catch(() => {})
-  return { ...made, cached: false }
+  let degraded: GeminiFailure | null = null
+  const made = await generateRecap(env, data.facts, data.notes, opts.fetchImpl, (r) => (degraded = r))
+  // AI 暫時失敗時的示意文字不快取，讓使用者稍後重試就能拿到真正的回顧
+  if (!degraded) await env.CACHE.put(key, JSON.stringify(made)).catch(() => {})
+  return { ...made, cached: false, degraded }
 }

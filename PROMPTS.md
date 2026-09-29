@@ -214,7 +214,7 @@
 **完成條件**
 - [ ] Playwright 截圖腳本可執行，無水平捲動
 
-### [ ] P20 錯誤處理與 loading
+### [x] P20 錯誤處理與 loading
 **要做的事**
 - 統一 API 錯誤格式 `{ error: { code, message } }`；前端 toast 顯示友善中文訊息 + 重試按鈕。
 - 各情境：上傳失敗、Gemini 逾時／額度用完（429）、產圖失敗、離線（PWA offline 頁）。

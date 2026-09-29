@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { HUE_GROUPS, HUE_GROUP_LABELS, classifyHue, getDailyColor, readableTextColor } from '@hueday/core'
-import { api } from '../lib/api'
+import { aiWarningMessage, friendlyMessage } from '../lib/errors'
+import { simulation } from '../lib/simulate'
+import { showError, showToast } from '../lib/toast'
 import { compressImage, sampleDominantColors } from '../lib/image'
 import { getEntry, uploadPhoto, type PhotoDto } from '../lib/entries'
 import PhotoTile from '../components/PhotoTile.vue'
@@ -16,30 +18,58 @@ const textColor = readableTextColor(color.hex)
 const mode = ref<Mode>(loadMode(date))
 watch(mode, (m) => saveMode(date, m))
 
+if (simulation.value === 'crash') throw new Error('simulated crash') // 開發用：?simulate=crash 驗證頁面保護
+
 const photos = ref<PhotoDto[]>([])
+const photosLoading = ref(true)
+const photosFailed = ref(false)
 const uploading = ref(0)
 const sheet = ref(false)
-const uploadError = ref('')
 const cameraInput = ref<HTMLInputElement>()
 const albumInput = ref<HTMLInputElement>()
+
+async function loadPhotos() {
+  photosLoading.value = true
+  photosFailed.value = false
+  try {
+    photos.value = (await getEntry(date)).photos
+  } catch {
+    photosFailed.value = true
+  } finally {
+    photosLoading.value = false
+  }
+}
+
+/** 送出一張已壓縮、已抽色的照片；失敗時給友善訊息與「重試」（重試不需要重新壓縮） */
+async function send(blob: Blob, colors: string[]) {
+  uploading.value++
+  try {
+    const { photo, warnings } = await uploadPhoto(date, blob, mode.value, colors)
+    photos.value.push(photo)
+    const note = aiWarningMessage(warnings)
+    if (note) showToast(note, 4000) // 照片已經傳好了，只是提醒 AI 暫時沒辦法判斷
+  } catch (e) {
+    showError(friendlyMessage(e, 'upload'), () => send(blob, colors))
+  } finally {
+    uploading.value--
+  }
+}
 
 async function onPick(e: Event) {
   const input = e.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
   input.value = ''
   sheet.value = false
-  uploadError.value = ''
   for (const f of files) {
-    uploading.value++
+    uploading.value++ // 壓縮期間也顯示 placeholder
     try {
       const blob = await compressImage(f)
       const colors = await sampleDominantColors(blob)
-      const { photo } = await uploadPhoto(date, blob, mode.value, colors)
-      photos.value.push(photo)
-    } catch {
-      uploadError.value = '上傳失敗，請再試一次'
-    } finally {
       uploading.value--
+      await send(blob, colors)
+    } catch (err) {
+      uploading.value--
+      showError(friendlyMessage(err, 'upload'))
     }
   }
 }
@@ -50,16 +80,7 @@ const bg = computed(() => {
   return gradientDataUri(fromPhotos.length ? fromPhotos : [color.hex], { style: mode.value === 'single' ? 'mesh' : 'flow', seed: date })
 })
 
-const health = ref('')
-onMounted(async () => {
-  getEntry(date).then((r) => (photos.value = r.photos)).catch(() => {})
-  try {
-    const r = await api<{ ok: boolean }>('/api/health')
-    health.value = r.ok ? 'API 連線正常' : 'API 異常'
-  } catch {
-    health.value = 'API 未連線'
-  }
-})
+onMounted(loadPhotos)
 
 const modes: { id: Mode; label: string }[] = [
   { id: 'single', label: '單色日' },
@@ -107,10 +128,18 @@ const hueSlots = computed(() => {
     </template>
 
     <div class="photos" data-testid="photos">
-      <PhotoTile v-for="p in photos" :key="p.id" :photo="p" />
-      <PhotoTile v-for="n in uploading" :key="'u' + n" pending />
+      <template v-if="photosLoading">
+        <PhotoTile v-for="n in 3" :key="'sk' + n" pending data-testid="photo-skeleton" />
+      </template>
+      <template v-else>
+        <PhotoTile v-for="p in photos" :key="p.id" :photo="p" />
+        <PhotoTile v-for="n in uploading" :key="'u' + n" pending />
+      </template>
     </div>
-    <p v-if="uploadError" class="err">{{ uploadError }}</p>
+    <div v-if="photosFailed" class="inline-err" data-testid="photos-error">
+      <span>無法載入今天的照片</span>
+      <button @click="loadPhotos">重試</button>
+    </div>
 
     <button class="fab" aria-label="新增照片" data-testid="add" @click="sheet = !sheet">＋</button>
     <div v-if="sheet" class="sheet">
@@ -120,7 +149,6 @@ const hueSlots = computed(() => {
     <input ref="cameraInput" type="file" accept="image/*" capture="environment" hidden @change="onPick" />
     <input ref="albumInput" type="file" accept="image/*" multiple hidden @change="onPick" />
 
-    <p v-if="health" class="health" data-testid="health">{{ health }}</p>
   </section>
 </template>
 
@@ -138,9 +166,9 @@ const hueSlots = computed(() => {
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .slot { aspect-ratio: 1; border-radius: var(--radius); border: 1.5px dashed var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 15px; }
 .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
-.err { color: #c8372d; font-size: 15px; }
+.inline-err { display: flex; align-items: center; gap: 12px; margin-top: 10px; color: var(--ink-soft); font-size: 15px; }
+.inline-err button { min-height: 44px; padding: 0 18px; border: 1.5px solid var(--line); border-radius: 999px; background: transparent; font-size: 15px; cursor: pointer; }
 .fab { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 20px + var(--safe-bottom)); width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); font-size: 28px; box-shadow: 0 4px 16px rgba(43, 42, 40, 0.25); cursor: pointer; z-index: 20; }
 .sheet { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 88px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg); border-radius: var(--radius); box-shadow: 0 4px 20px rgba(43, 42, 40, 0.18); z-index: 20; }
 .sheet button { border: 0; background: transparent; padding: 12px 18px; font-size: 16px; text-align: left; min-height: 44px; cursor: pointer; }
-.health { color: var(--ink-soft); font-size: 15px; text-align: center; margin-top: 24px; }
 </style>

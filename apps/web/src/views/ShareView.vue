@@ -112,7 +112,7 @@ const bg = computed(() => {
       </label>
     </div>
 
-    <button class="share" :disabled="!canShare" data-testid="share-btn" @click="onShare">分享</button>
+    <div class="dock"><button class="share" :disabled="!canShare" data-testid="share-btn" @click="onShare">分享</button></div>
   </section>
 </template>
 
@@ -129,6 +129,7 @@ const bg = computed(() => {
 .seg button.on { background: var(--bg); box-shadow: var(--shadow); font-weight: 500; }
 .grain { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-soft); }
 .grain input { width: 140px; accent-color: var(--ink); min-height: 44px; }
-.share { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px); z-index: 5; display: block; margin: 16px auto 0; min-width: 160px; min-height: 48px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 16px; cursor: pointer; transition: opacity var(--ease); }
+.dock { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-bottom)); z-index: 5; margin: 8px -20px 0; padding: 12px 20px 12px; background: linear-gradient(to top, var(--bg) 78%, rgba(250, 247, 242, 0)); }
+.share { display: block; margin: 0 auto; min-width: 160px; min-height: 48px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 16px; cursor: pointer; transition: opacity var(--ease); }
 .share:disabled { opacity: 0.35; cursor: default; }
 </style>
