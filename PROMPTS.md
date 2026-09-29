@@ -233,7 +233,7 @@
 - [ ] rate limit 有整合測試（vitest + miniflare 或 `unstable_dev`）
 - [ ] 同樣 render 請求第二次明顯變快（NOTES 記錄時間）
 
-### [ ] P22 README（不部署）
+### [x] P22 README（不部署）
 **要做的事**
 - `README.md`：產品介紹（一句話 + 三種模式）、截圖（P19）、架構圖（mermaid）、使用的第三方 API（Gemini、Cloudflare Workers/D1/R2/KV、Google Fonts、workers-og/Satori）、本地開發步驟、部署步驟（連到 `apps/api/DEPLOY.md`）。
 - 在 `NOTES.md` 最後寫「使用者待辦」清單：部署步驟、要申請的 key、標成 `[!]` 的步驟。

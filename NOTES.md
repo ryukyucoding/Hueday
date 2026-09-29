@@ -20,3 +20,44 @@ P18: core/templates/monthPoster.ts：layoutMonthPoster(month, weekStart)——7 
 P19: 手機體驗：viewport-fit=cover + CSS 變數 --safe-top/bottom/left/right（env(safe-area-inset-*)）套用在頂欄、內容、固定 tab bar（高度=64+底部安全區）、toast、FAB；iOS meta（apple-mobile-web-app-capable、status-bar-style default）；touch-action:manipulation、input/textarea 字級 16px（避免 iOS 自動放大）；文字全部 ≥15px（卡片色名/判斷、tab 標籤、health 由 13 改 15）；觸控目標 ≥44px（切換鈕 40→44；日曆頁左右內距縮小、格距 4px，使 360px 寬的 Pixel 格子也 ≥44）；分享頁按鈕改 sticky 固定在 tab bar 上方、預覽縮為 300px。scripts/screenshots.mjs（npm run screenshots）：Playwright 模擬 iPhone 14 與 Pixel 7，截今天/日曆/分享存 docs/screenshots/（視窗大小，fullPage 會讓固定 tab bar 跑到中間），並自動檢查水平捲動、字級、觸控目標，有問題 exit 1。踩到的坑：body 設 overflow-x:hidden 會讓 documentElement.scrollWidth 失真，而且手機版 Chrome 遇到超寬內容會自動縮小可視範圍、window.innerWidth 也變大，所以水平捲動檢查改成『逐一比對元素是否超出裝置真實寬度（祖先有捲動/裁切容器的除外）』，並用故意做壞的頁面驗證偵測器真的抓得到（第一版全綠其實是盲的）。分享頁的模板切換與控制項在小螢幕需捲動才看到（按鈕已固定）。
 P20: 統一錯誤格式：API 全面 {error:{code,message}}（新增 app.notFound→404 not_found、app.onError→500 internal_error，不外洩內部訊息）。前端 lib/errors.ts：ApiError（status 0=離線/連不上）、friendlyMessage(e, ctx)（離線/413/415/429含秒數/產圖失敗/各情境預設，全是友善中文，測試確認不會露出 TypeError/錯誤碼）、aiWarningMessage（額度>逾時>其他）；lib/api.ts 統一 request()，lib/toast.ts 支援『重試』action（error 種類停留 8s，Transition 改 out-in 避免兩個 toast 疊在一起）。各情境：上傳失敗→toast+重試（重試不重新壓縮，失敗不留半張照片）；Gemini 429/逾時/其他→API 回 warnings[ai_quota|ai_timeout|ai_error]，照片仍上傳成功、提示『先用示意結果』（recap 回 degraded，降級的示意文字不進 KV 快取，稍後重試可拿到真的）；429→『請 N 秒後再試』；產圖失敗→分享頁 slide 內嵌訊息+重試；離線→離線橫幅（navigator.onLine 與 ?simulate=offline）+各頁『目前沒有網路』+重試；PWA workbox navigateFallback=/index.html（預先快取的 App 外殼離線可開，/api/ 不被換成 index.html），所以『離線頁』做成 in-app 橫幅與各頁離線狀態而非獨立 offline.html。Loading：今天/當天頁照片骨架、日曆格子骨架（預載月份失敗不打擾）、分享/回顧頁 skeleton。白畫面保護：App.vue onErrorCaptured 顯示『這一頁出了點問題』+重新載入/回到今天（tab bar 仍可用，換頁恢復）、app.config.errorHandler 與 unhandledrejection 一律 toast。開發用模擬（dev 才生效）：網址 ?simulate=xxx 或 console window.__simulate('xxx')，前端處理 offline/crash，其餘以 X-Simulate header 交給 API（僅 ALLOW_SIMULATE=1，即 npm run dev 的 wrangler --var；正式環境沒有這個變數→header 被忽略，有測試）：upload-fail、gemini-quota、gemini-timeout、gemini-error、render-fail、rate-limit（429+Retry-After:30）、server-error。Playwright 端到端 20 項通過（上傳失敗→重試成功、Gemini 額度/逾時、429、產圖失敗→重試、模擬與真實離線、頁面當機、三個頁面骨架）。順手修：toast 抬高避免蓋到 FAB；分享鈕改實色 dock，不再透出底下的控制項。
 P21: 限流（apps/api/src/rateLimit.ts）：KV 固定視窗計數器，每位使用者每分鐘 upload≤10、gemini≤20、render≤30，超過回 429 + Retry-After（秒數=到下一分鐘）+ 統一錯誤格式；KV 非原子，屬近似限流（已寫入 DEPLOY.md）。設計取捨：上傳的 Gemini 額度不夠時『不讓上傳失敗』，改用示意結果並回 warnings:[ai_rate_limited]（單色日扣 2 次=判斷+色名、集色日 1 次；沒有 key 的 mock 模式不扣）；月回顧的主要動作就是 Gemini，所以超過直接 429，命中快取不扣額度；產圖只有未命中快取才扣額度。上傳格式白名單 jpeg/png/webp/heic/heif（其餘 415），10MB 上限（413，剛好 10MB 可以）。產圖快取（render/renderCache.ts）：Cache API，key=使用者+模板+全部查詢參數(排序)+資料版本(_v)+RENDER_VERSION；資料版本由 D1 算出（collage/swatch=當天 Entry+照片數+最後建立時間；compare=今年+去年；stats/palette=使用者所有照片；recap=同上+KV 回顧文字 hash），所以新增照片/重產回顧後舊快取自動不再命中；對使用者回 Cache-Control: private,no-cache（避免瀏覽器留舊圖）、存進快取的是 immutable；X-Render-Cache: hit|miss；satori 靜默回傳空 PNG 時視為失敗且不快取；模擬模式不讀寫快取。實測（本地 wrangler dev，同一份 PNG 約 2.7MB）：未命中 5.55s / 5.84s / 5.63s，命中 0.009–0.015s（約快 400 倍）；新增照片後 miss→再請求 hit；改 grain 參數 miss→hit。注意：Cache API 在 *.workers.dev 不生效（需自訂網域）、產圖 CPU 遠超免費方案 10ms（需 Workers Paid），皆已列入 DEPLOY.md 與使用者待辦。測試：api 106 個（限流含視窗重置/使用者隔離/cost 整批拒絕、上傳 11 次→429、Gemini/recap/render 額度、格式白名單、10MB 邊界、快取 key 與 dataVersion 失效）。Worker 2137 KiB / gzip 735 KiB。
+P22: README.md（一句話 + 三種模式 + 6 種限動模板、截圖表格、mermaid 架構圖、主要 API、第三方服務、本地開發/seed/截圖/測試、部署連到 DEPLOY.md）。根目錄補 npm run migrate:local 捷徑。『README 內所有指令在本地實際跑過一次』的做法：把專案複製到全新目錄（不含 node_modules/.wrangler/dist），從頭依 README 順序執行——npm install → build → test（core 185 / api 106 / web 19）→ seed（沒 migrate 時給清楚提示）→ migrate:local → seed → SEED_USER/SEED_TODAY seed → dev（health OK；沒 key 為 mock、寫入 apps/api/.dev.vars 後真的去呼叫 Gemini）→ screenshots（含沒有 dev server 時 exit 2 的提示）→ gen-icons → 各 workspace 的 test → ?uid= 與 ?simulate=/__simulate。過程只發現 README 自己的問題一處：缺 migrate:local 捷徑（已補）。22 步全部完成，沒有任何步驟被標成 [!]。
+
+---
+
+# 使用者待辦（最終清單）
+
+## 1. 要申請 / 準備的東西
+- [ ] **Cloudflare 帳號**，並升級到 **Workers Paid**：產圖（satori + resvg）本地實測約 5 秒 CPU，免費方案 CPU 上限 10 ms，一定會失敗。
+- [ ] **自訂網域**：PNG 快取用 Cache API，在 `*.workers.dev` 不生效（每次都重新產圖，很慢）。綁網域後看回應標頭 `X-Render-Cache: hit` 確認。
+- [ ] **Gemini API key**（Google AI Studio 申請）：正式環境 `npx wrangler secret put GEMINI_API_KEY`；本地放 `apps/api/.dev.vars`（已在 .gitignore）。沒有 key 也能用，只是 AI 結果是示意資料（畫面標示『示意』）。
+- Google Fonts 不需要 key（Worker 會用 `text=` 只抓用到的字並快取在 KV）。
+
+## 2. 部署步驟（詳細指令在 `apps/api/DEPLOY.md`）
+- [ ] `npx wrangler login`
+- [ ] `npx wrangler d1 create hueday` → 把 database_id 填進 `apps/api/wrangler.toml`
+- [ ] `npx wrangler r2 bucket create hueday-photos`
+- [ ] `npx wrangler kv namespace create CACHE` → 把 id 填進 `wrangler.toml`
+- [ ] `npx wrangler d1 migrations apply DB --remote`（在 `apps/api`，共 0001、0002 兩支 migration）
+- [ ] `npx wrangler secret put GEMINI_API_KEY`
+- [ ] `npx wrangler deploy`（在 `apps/api`）
+- [ ] Cloudflare Pages：build `npm run build -w packages/core && npm run build -w apps/web`，output `apps/web/dist`；讓 `/api/*` 導向 Worker（同網域 Worker route）
+- [ ] 綁定自訂網域
+- **不要**在正式環境設定 `ALLOW_SIMULATE`（那是本地開發用的錯誤模擬開關；沒設定時 `X-Simulate` header 會被完全忽略，已有測試）。
+
+## 3. 標成 [!] 的步驟
+- 沒有。22 步全部是 [x]。
+
+## 4. 我在這個環境無法驗證，請你在真實環境確認
+- [ ] **真機分享**：行動版 Safari / Chrome 的 `navigator.share({ files })`（選 Instagram）。桌面 Chromium 的下載流程已實測；分享流程只有單元測試（feature detection + 取消 + 失敗退回下載）。
+- [ ] **真的 Gemini**：判斷準確度、詩意色名品質、月總結是否落在 80–120 字（不合格會退回示意文字，並且不快取）。本地只驗證了請求格式、失敗分類與降級。
+- [ ] **真的 Cloudflare**：Workers Paid 的 CPU/記憶體是否足夠、Worker 大小（本地 2137 KiB / gzip 735 KiB，免費方案上限 3 MB gzip 沒問題）、D1/R2/KV remote、Pages → Worker 的 `/api` 路由、Cache API 在自訂網域的命中。
+- [ ] **中文字型**：Worker 從 Cloudflare 邊緣抓 Google Fonts（本地沙盒可以，正式環境請看產出的 PNG 有沒有豆腐字）。
+- [ ] **PWA**：iOS / Android 加入主畫面、離線時 App 外殼可開（各頁會顯示離線狀態，沒有獨立 offline.html）。
+- [ ] **HEIC**：非 Safari 瀏覽器無法解碼 HEIC 時，前端會送原檔——這種照片沒有主色（漸層改用今日色）。
+
+## 5. 已知限制（之後可以做）
+- **身分只是匿名 UUID（`X-User-Id`），沒有登入或驗證**：任何人拿到某個 UUID 就能讀寫那位使用者的資料。上線給不特定人使用前，需要真正的登入（階段二）。
+- 限流用 KV 計數器，非原子（近似）；要嚴格限流請改 Durable Object 或 Rate Limiting binding。
+- 沒有刪除照片 / 修改當天模式的功能；備註是唯一可編輯的欄位。
+- 選配的中央氣象署『天氣顏色題』沒有做。
+- 網頁版刻意跳過（留給原生 App）：IG Share to Stories、每日提醒推播、照片 EXIF、桌面小工具、會動的 MP4 限動。
