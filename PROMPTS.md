@@ -21,7 +21,7 @@
 - [ ] build 產物包含 `manifest.webmanifest` 與 service worker
 - [ ] 三個 tab 可切換（各自是 placeholder 頁面）
 
-### [ ] P2 Cloudflare Worker API
+### [x] P2 Cloudflare Worker API
 **要做的事**
 - `apps/api`：Hono + TypeScript，`wrangler.toml` 綁定 `DB`（D1）、`PHOTOS`（R2）、`CACHE`（KV），id 用 `REPLACE_ME` placeholder；`[vars]` 放 `GEMINI_MODEL`。
 - D1 migration `0001_init.sql`：`entries`（id, user_id, date, mode, target_color, note, created_at，UNIQUE(user_id, date)）、`photos`（id, entry_id, r2_key, dominant_colors JSON, ai_color_name, matches_target, subject, created_at）。
