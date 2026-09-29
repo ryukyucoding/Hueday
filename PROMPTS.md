@@ -116,7 +116,7 @@
 - [ ] 1–6 張照片各種數量都排得好看（無重疊出界）
 - [ ] 排版座標函式有測試
 
-### [ ] P10 Worker 產生 PNG
+### [x] P10 Worker 產生 PNG
 **要做的事**
 - 使用 `workers-og`（或 `satori` + `@resvg/resvg-wasm`）在 Worker 產 1080×1920 PNG：`GET /api/render?template=collage&date=YYYY-MM-DD`。
 - 底圖：嵌入 P8 的 SVG（data URI）；照片：從 R2 讀出轉 data URI。
