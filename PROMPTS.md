@@ -35,7 +35,7 @@
 - [ ] 本地套用 migration 成功（`wrangler d1 migrations apply DB --local`）
 - [ ] 前端首頁能顯示 `/api/health` 的結果
 
-### [ ] P3 今日顏色
+### [x] P3 今日顏色
 **要做的事**
 - `packages/core/src/palette.ts`：精選 60 色色票（每色含 hex、中文名、英文名、一句尋找提示，例：「#E8603C 柿子橘 — 找找看招牌、落葉或一杯熱茶」）。
 - `getDailyColor(date: string)`：用日期字串做 deterministic hash 選色，同一天所有人相同；附測試（同日相同、不同日分佈合理）。
