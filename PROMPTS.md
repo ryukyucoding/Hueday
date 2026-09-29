@@ -46,7 +46,7 @@
 - [ ] core 測試通過
 - [ ] 首頁顯示今日顏色，重新整理不變；可切換兩種模式
 
-### [ ] P4 拍照與上傳
+### [x] P4 拍照與上傳
 **要做的事**
 - 首頁「＋」按鈕：`<input type="file" accept="image/*" capture="environment">`，也可從相簿選。
 - 前端用 canvas 壓縮到長邊 1600px、JPEG 0.85。

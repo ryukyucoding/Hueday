@@ -2,6 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { HUE_GROUPS, HUE_GROUP_LABELS, getDailyColor, readableTextColor } from '@hueday/core'
 import { api } from '../lib/api'
+import { compressImage } from '../lib/image'
+import { getEntry, uploadPhoto, type PhotoDto } from '../lib/entries'
+import PhotoTile from '../components/PhotoTile.vue'
 import { todayString } from '../lib/date'
 import { loadMode, saveMode, type Mode } from '../lib/mode'
 
@@ -11,8 +14,35 @@ const textColor = readableTextColor(color.hex)
 const mode = ref<Mode>(loadMode(date))
 watch(mode, (m) => saveMode(date, m))
 
+const photos = ref<PhotoDto[]>([])
+const uploading = ref(0)
+const sheet = ref(false)
+const uploadError = ref('')
+const cameraInput = ref<HTMLInputElement>()
+const albumInput = ref<HTMLInputElement>()
+
+async function onPick(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  sheet.value = false
+  uploadError.value = ''
+  for (const f of files) {
+    uploading.value++
+    try {
+      const { photo } = await uploadPhoto(date, await compressImage(f), mode.value)
+      photos.value.push(photo)
+    } catch {
+      uploadError.value = '上傳失敗，請再試一次'
+    } finally {
+      uploading.value--
+    }
+  }
+}
+
 const health = ref('')
 onMounted(async () => {
+  getEntry(date).then((r) => (photos.value = r.photos)).catch(() => {})
   try {
     const r = await api<{ ok: boolean }>('/api/health')
     health.value = r.ok ? 'API 連線正常' : 'API 異常'
@@ -56,6 +86,20 @@ const hueSlots = computed(() => HUE_GROUPS.map((g) => ({ id: g, label: HUE_GROUP
       </div>
     </template>
 
+    <div class="photos" data-testid="photos">
+      <PhotoTile v-for="p in photos" :key="p.id" :photo="p" />
+      <PhotoTile v-for="n in uploading" :key="'u' + n" pending />
+    </div>
+    <p v-if="uploadError" class="err">{{ uploadError }}</p>
+
+    <button class="fab" aria-label="新增照片" data-testid="add" @click="sheet = !sheet">＋</button>
+    <div v-if="sheet" class="sheet">
+      <button @click="cameraInput?.click()">拍照</button>
+      <button @click="albumInput?.click()">從相簿選</button>
+    </div>
+    <input ref="cameraInput" type="file" accept="image/*" capture="environment" hidden @change="onPick" />
+    <input ref="albumInput" type="file" accept="image/*" multiple hidden @change="onPick" />
+
     <p v-if="health" class="health" data-testid="health">{{ health }}</p>
   </section>
 </template>
@@ -72,5 +116,10 @@ const hueSlots = computed(() => HUE_GROUPS.map((g) => ({ id: g, label: HUE_GROUP
 .tip { color: var(--ink-soft); line-height: 1.6; margin: 16px 2px; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .slot { aspect-ratio: 1; border-radius: var(--radius); border: 1.5px dashed var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 15px; }
+.photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+.err { color: #c8372d; font-size: 15px; }
+.fab { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 20px + env(safe-area-inset-bottom)); width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); font-size: 28px; box-shadow: 0 4px 16px rgba(43, 42, 40, 0.25); cursor: pointer; z-index: 20; }
+.sheet { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 88px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg); border-radius: var(--radius); box-shadow: 0 4px 20px rgba(43, 42, 40, 0.18); z-index: 20; }
+.sheet button { border: 0; background: transparent; padding: 12px 18px; font-size: 16px; text-align: left; min-height: 44px; cursor: pointer; }
 .health { color: var(--ink-soft); font-size: 13px; text-align: center; margin-top: 24px; }
 </style>

@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from './types'
+import { entries } from './routes/entries'
+import { photos } from './routes/photos'
 
 const app = new Hono<AppEnv>()
 
@@ -13,5 +15,8 @@ app.use('/api/*', async (c, next) => {
   c.set('userId', userId)
   await next()
 })
+
+app.route('/api/entries', entries)
+app.route('/api/photos', photos)
 
 export default app
