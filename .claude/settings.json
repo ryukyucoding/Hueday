@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(wrangler deploy:*)",
+      "Bash(npx wrangler deploy:*)",
+      "Bash(wrangler login:*)",
+      "Bash(npx wrangler login:*)"
+    ]
+  }
+}
