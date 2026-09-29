@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from './lib/toast'
 const tabs = [
   { to: '/', label: '今天', icon: '●' },
   { to: '/calendar', label: '日曆', icon: '▦' },
@@ -10,6 +11,7 @@ const tabs = [
   <div class="shell">
     <header class="topbar"><h1>拾色 <span>Hueday</span></h1></header>
     <main class="content"><RouterView /></main>
+    <Transition name="toast"><div v-if="toast.message" :key="toast.id" class="toast" role="status">{{ toast.message }}</div></Transition>
     <nav class="tabbar">
       <RouterLink v-for="t in tabs" :key="t.to" :to="t.to" class="tab" active-class="active" exact-active-class="active">
         <span class="ico">{{ t.icon }}</span><span>{{ t.label }}</span>
@@ -31,4 +33,7 @@ const tabs = [
 .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-decoration: none; color: var(--ink-soft); font-size: 13px; transition: color var(--ease); }
 .tab .ico { font-size: 18px; }
 .tab.active { color: var(--ink); font-weight: 500; }
+.toast { position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 20px; border-radius: 999px; font-size: 15px; z-index: 30; box-shadow: var(--shadow); }
+.toast-enter-active, .toast-leave-active { transition: opacity var(--ease), transform var(--ease); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 8px); }
 </style>

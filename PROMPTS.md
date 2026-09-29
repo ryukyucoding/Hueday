@@ -129,7 +129,7 @@
 
 ## 分享
 
-### [ ] P11 分享 / 下載
+### [x] P11 分享 / 下載
 **要做的事**
 - 「分享」按鈕：取得 PNG → `navigator.canShare({ files })` 成立則 `navigator.share({ files: [file] })`（使用者可選 Instagram），否則下載 `hueday-YYYY-MM-DD.png`。
 - 分享成功後顯示輕量 toast，不要顯示任何數字或社交指標。
