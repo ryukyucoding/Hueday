@@ -94,7 +94,7 @@
 - [ ] 每張照片都有色名（真實或 mock）
 - [ ] 長度超過 10 字時截斷處理有測試
 
-### [ ] P8 漸層產生器（core）
+### [x] P8 漸層產生器（core）
 **要做的事**
 - `buildGradient(colors: string[], opts: { style: 'mesh' | 'flow', seed: string, grain: number })`：
   - 單色日若只有 1–2 色，自動在 OKLab 空間補同色系的淺、深、偏暖、偏冷變化到 4 色。

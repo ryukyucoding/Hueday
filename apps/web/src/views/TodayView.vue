@@ -6,6 +6,7 @@ import { compressImage, sampleDominantColors } from '../lib/image'
 import { getEntry, uploadPhoto, type PhotoDto } from '../lib/entries'
 import PhotoTile from '../components/PhotoTile.vue'
 import { todayString } from '../lib/date'
+import { gradientDataUri, pickDistinct } from '../lib/gradient'
 import { loadMode, saveMode, type Mode } from '../lib/mode'
 
 const date = todayString()
@@ -42,6 +43,12 @@ async function onPick(e: Event) {
   }
 }
 
+// 背景：今日照片主色的漸層（沒有照片時用今日顏色）；單色日 mesh、集色日 flow
+const bg = computed(() => {
+  const fromPhotos = pickDistinct(photos.value.flatMap((p) => p.dominantColors))
+  return gradientDataUri(fromPhotos.length ? fromPhotos : [color.hex], { style: mode.value === 'single' ? 'mesh' : 'flow', seed: date })
+})
+
 const health = ref('')
 onMounted(async () => {
   getEntry(date).then((r) => (photos.value = r.photos)).catch(() => {})
@@ -70,6 +77,7 @@ const hueSlots = computed(() => {
 
 <template>
   <section class="page" data-testid="page-today">
+    <div class="bg" :style="{ backgroundImage: bg }" data-testid="bg" aria-hidden="true" />
     <p class="date">{{ date }}</p>
 
     <div class="seg" role="tablist">
@@ -115,6 +123,7 @@ const hueSlots = computed(() => {
 </template>
 
 <style scoped>
+.bg { position: fixed; inset: 0; z-index: -1; background-size: cover; background-position: center; opacity: 0.55; pointer-events: none; }
 .date { font-family: var(--font-display); font-size: 15px; color: var(--ink-soft); margin: 4px 0 12px; }
 .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(43, 42, 40, 0.06); margin-bottom: 16px; }
 .seg button { border: 0; background: transparent; padding: 8px 18px; border-radius: 999px; font-size: 15px; min-height: 40px; cursor: pointer; transition: all var(--ease); }
