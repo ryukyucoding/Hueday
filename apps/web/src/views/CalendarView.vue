@@ -69,7 +69,7 @@ function open(date: string) {
 </script>
 
 <template>
-  <section class="page" data-testid="page-calendar">
+  <section class="page cal" data-testid="page-calendar">
     <header class="head">
       <button class="nav" aria-label="上個月" data-testid="prev" @click="month = shiftMonth(month, -1)">‹</button>
       <div class="mid">
@@ -102,6 +102,8 @@ function open(date: string) {
 </template>
 
 <style scoped>
+/* 7 欄格子在窄螢幕要讓格子 ≥ 44px：日曆頁左右內距縮小 */
+.cal { margin: 0 -8px; }
 .head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
 .mid { text-align: center; }
 .recap { border: 0; background: transparent; color: var(--ink-soft); font-size: 15px; min-height: 44px; padding: 0 12px; cursor: pointer; }
@@ -110,7 +112,7 @@ function open(date: string) {
 .nav { width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(43, 42, 40, 0.06); font-size: 24px; cursor: pointer; transition: background var(--ease); }
 .nav:active { background: rgba(43, 42, 40, 0.14); }
 .wd { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; color: var(--ink-soft); font-size: 15px; margin-bottom: 6px; }
-.grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; transition: opacity var(--ease); }
+.grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; transition: opacity var(--ease); }
 .grid.busy { opacity: 0.4; }
 .blank { aspect-ratio: 1; }
 .day { aspect-ratio: 1; border: 1.5px dashed var(--line); border-radius: 10px; background: transparent; color: var(--ink-soft); font-size: 15px; padding: 4px 0 0 6px; text-align: left; cursor: pointer; background-size: cover; background-position: center; transition: transform var(--ease); min-height: 44px; }

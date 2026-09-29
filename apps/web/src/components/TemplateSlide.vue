@@ -76,7 +76,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .slide { flex: 0 0 100%; scroll-snap-align: center; display: flex; justify-content: center; }
-.frame { position: relative; width: min(100%, 340px); }
+.frame { position: relative; width: min(100%, 300px); }
 .png { display: block; width: 100%; aspect-ratio: 9 / 16; border-radius: var(--radius); box-shadow: var(--shadow); transition: opacity var(--ease); }
 .dim { opacity: 0.55; }
 .skeleton { width: 100%; aspect-ratio: 9 / 16; border-radius: var(--radius); background: rgba(43, 42, 40, 0.06); animation: pulse 1.2s ease-in-out infinite; }

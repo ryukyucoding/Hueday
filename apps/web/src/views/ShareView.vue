@@ -119,16 +119,16 @@ const bg = computed(() => {
 <style scoped>
 .track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 -20px; overscroll-behavior-x: contain; }
 .track::-webkit-scrollbar { display: none; }
-.fallback { width: min(100%, 340px); }
+.fallback { width: min(100%, 300px); }
 .dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 6px; flex-wrap: wrap; }
 .dots button { border: 0; background: transparent; padding: 8px 12px; min-height: 44px; border-radius: 999px; font-size: 15px; color: var(--ink-soft); cursor: pointer; transition: all var(--ease); }
 .dots button.on { background: rgba(43, 42, 40, 0.08); color: var(--ink); font-weight: 500; }
 .controls { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
 .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(43, 42, 40, 0.06); }
-.seg button { border: 0; background: transparent; padding: 8px 18px; min-height: 40px; border-radius: 999px; font-size: 15px; cursor: pointer; transition: all var(--ease); }
+.seg button { border: 0; background: transparent; padding: 8px 18px; min-height: 44px; border-radius: 999px; font-size: 15px; cursor: pointer; transition: all var(--ease); }
 .seg button.on { background: var(--bg); box-shadow: var(--shadow); font-weight: 500; }
 .grain { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-soft); }
 .grain input { width: 140px; accent-color: var(--ink); min-height: 44px; }
-.share { display: block; margin: 16px auto 0; min-width: 160px; min-height: 48px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 16px; cursor: pointer; transition: opacity var(--ease); }
+.share { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px); z-index: 5; display: block; margin: 16px auto 0; min-width: 160px; min-height: 48px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 16px; cursor: pointer; transition: opacity var(--ease); }
 .share:disabled { opacity: 0.35; cursor: default; }
 </style>

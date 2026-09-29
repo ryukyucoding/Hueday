@@ -205,7 +205,7 @@
 
 ## 收尾
 
-### [ ] P19 手機體驗打磨
+### [x] P19 手機體驗打磨
 **要做的事**
 - `env(safe-area-inset-*)` 處理瀏海與底部 home bar；tab bar 固定底部。
 - 觸控目標 ≥ 44px、字級 ≥ 15px、input 避免 iOS 自動放大（font-size ≥ 16px）。

@@ -128,7 +128,7 @@ const hueSlots = computed(() => {
 .bg { position: fixed; inset: 0; z-index: -1; background-size: cover; background-position: center; opacity: 0.55; pointer-events: none; }
 .date { font-family: var(--font-display); font-size: 15px; color: var(--ink-soft); margin: 4px 0 12px; }
 .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(43, 42, 40, 0.06); margin-bottom: 16px; }
-.seg button { border: 0; background: transparent; padding: 8px 18px; border-radius: 999px; font-size: 15px; min-height: 40px; cursor: pointer; transition: all var(--ease); }
+.seg button { border: 0; background: transparent; padding: 8px 18px; border-radius: 999px; font-size: 15px; min-height: 44px; cursor: pointer; transition: all var(--ease); }
 .seg button.on { background: var(--bg); box-shadow: var(--shadow); font-weight: 500; }
 .swatch { border-radius: var(--radius); box-shadow: var(--shadow); aspect-ratio: 4 / 5; padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; }
 .swatch .hex { font-family: var(--font-display); opacity: 0.8; letter-spacing: 0.08em; font-size: 15px; }
@@ -139,8 +139,8 @@ const hueSlots = computed(() => {
 .slot { aspect-ratio: 1; border-radius: var(--radius); border: 1.5px dashed var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 15px; }
 .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
 .err { color: #c8372d; font-size: 15px; }
-.fab { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 20px + env(safe-area-inset-bottom)); width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); font-size: 28px; box-shadow: 0 4px 16px rgba(43, 42, 40, 0.25); cursor: pointer; z-index: 20; }
-.sheet { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 88px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg); border-radius: var(--radius); box-shadow: 0 4px 20px rgba(43, 42, 40, 0.18); z-index: 20; }
+.fab { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 20px + var(--safe-bottom)); width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); font-size: 28px; box-shadow: 0 4px 16px rgba(43, 42, 40, 0.25); cursor: pointer; z-index: 20; }
+.sheet { position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(var(--tabbar-h) + 88px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg); border-radius: var(--radius); box-shadow: 0 4px 20px rgba(43, 42, 40, 0.18); z-index: 20; }
 .sheet button { border: 0; background: transparent; padding: 12px 18px; font-size: 16px; text-align: left; min-height: 44px; cursor: pointer; }
-.health { color: var(--ink-soft); font-size: 13px; text-align: center; margin-top: 24px; }
+.health { color: var(--ink-soft); font-size: 15px; text-align: center; margin-top: 24px; }
 </style>
