@@ -137,3 +137,17 @@ describe('calendar summary & notes', () => {
     expect(other.entry).toBeNull()
   })
 })
+
+describe('月摘要的 mainColor（月色票海報用）', () => {
+  it('每天回傳一個主色：最大的一群顏色（不是平均混色）', async () => {
+    await upload('mc1', '2025-12-01', jpegFile(), { dominantColors: JSON.stringify(['#FF0000', '#0000FF']) })
+    await upload('mc1', '2025-12-01', jpegFile(), { dominantColors: JSON.stringify(['#FF0000']) })
+    await upload('mc1', '2025-12-02', jpegFile(), { dominantColors: JSON.stringify(['#00FF00']) })
+    await app.request('/api/entries/2025-12-03/note', { method: 'PUT', body: JSON.stringify({ note: '只有備註' }), headers: { ...headers('mc1'), 'Content-Type': 'application/json' } }, env)
+    const body = (await (await app.request('/api/entries?month=2025-12', { headers: headers('mc1') }, env)).json()) as any
+    const by = Object.fromEntries(body.days.map((d: any) => [d.date, d]))
+    expect(by['2025-12-01'].mainColor).toBe('#FF0000')
+    expect(by['2025-12-02'].mainColor).toBe('#00FF00')
+    expect(by['2025-12-03'].mainColor).toBeNull() // 只有備註、沒有照片
+  })
+})

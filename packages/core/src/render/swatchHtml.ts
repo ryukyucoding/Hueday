@@ -1,4 +1,5 @@
-import { STORY_HEIGHT, STORY_WIDTH, formatHex, formatSwatchDate, layoutSwatch } from '@hueday/core'
+import { STORY_HEIGHT, STORY_WIDTH } from '../templates/collage'
+import { formatHex, formatSwatchDate, layoutSwatch } from '../templates/swatch'
 import { BODY_FONT, DISPLAY_FONT, esc } from './collageHtml'
 
 export type SwatchHtmlInput = {

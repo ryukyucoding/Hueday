@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from './types'
 import { entries } from './routes/entries'
 import { photos } from './routes/photos'
-import { render } from './routes/render'
+import { font } from './routes/font'
 import { stats } from './routes/stats'
 import { recap } from './routes/recap'
 import { errorJson } from './errors'
@@ -30,7 +30,7 @@ app.use('/api/*', async (c, next) => {
 
 app.route('/api/entries', entries)
 app.route('/api/photos', photos)
-app.route('/api/render', render)
+app.route('/api/font', font)
 app.route('/api/stats', stats)
 app.route('/api/recap', recap)
 

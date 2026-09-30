@@ -24,8 +24,8 @@ function upload(uid: string, date: string, file = jpegFile(), e: Bindings = env,
 }
 
 describe('hit（KV 固定視窗計數器）', () => {
-  it('上限：upload 10 / gemini 20 / render 30', () => {
-    expect(LIMITS).toEqual({ upload: 10, gemini: 20, render: 30 })
+  it('上限：upload 10 / gemini 20 / font 30', () => {
+    expect(LIMITS).toEqual({ upload: 10, gemini: 20, font: 30 })
   })
 
   it('剛好用到上限為止；超過回 ok:false 與 1–60 秒的 retryAfter', async () => {
@@ -44,11 +44,11 @@ describe('hit（KV 固定視窗計數器）', () => {
 
   it('下一分鐘重新計算；不同使用者、不同 bucket 互不影響', async () => {
     const t = Date.UTC(2025, 0, 1, 0, 5, 0)
-    await hit(env.CACHE, 'h2', 'render', 30, t)
-    expect((await hit(env.CACHE, 'h2', 'render', 1, t)).ok).toBe(false)
-    expect((await hit(env.CACHE, 'h2', 'render', 1, t + 60_000)).ok).toBe(true)
+    await hit(env.CACHE, 'h2', 'font', 30, t)
+    expect((await hit(env.CACHE, 'h2', 'font', 1, t)).ok).toBe(false)
+    expect((await hit(env.CACHE, 'h2', 'font', 1, t + 60_000)).ok).toBe(true)
     expect((await hit(env.CACHE, 'h2', 'upload', 1, t)).ok).toBe(true)
-    expect((await hit(env.CACHE, 'someone-else', 'render', 1, t)).ok).toBe(true)
+    expect((await hit(env.CACHE, 'someone-else', 'font', 1, t)).ok).toBe(true)
   })
 
   it('cost 大於剩餘量時不扣（整批拒絕）', async () => {
@@ -152,10 +152,10 @@ describe('Gemini 呼叫額度：每分鐘 ≤ 20 次', () => {
   })
 })
 
-describe('產圖額度：每分鐘 ≤ 30 次', () => {
-  it('額度用完回 429 + Retry-After（在做任何重活之前就擋下）', async () => {
-    await hit(env.CACHE, 'r1', 'render', 30)
-    const res = await app.request('/api/render?template=collage&date=2025-01-01', { headers: H('r1') }, env)
+describe('字型代理額度：每分鐘 ≤ 30 次', () => {
+  it('額度用完回 429 + Retry-After（在碰 Google 之前就擋下）', async () => {
+    await hit(env.CACHE, 'f1', 'font', 30)
+    const res = await app.request('/api/font?family=Fraunces&weight=700&text=abc', { headers: H('f1') }, env)
     expect(res.status).toBe(429)
     expect(Number(res.headers.get('Retry-After'))).toBeGreaterThanOrEqual(1)
     expect(((await res.json()) as any).error.code).toBe('rate_limited')

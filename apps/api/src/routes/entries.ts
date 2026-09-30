@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getDailyColor, pickDistinctColors } from '@hueday/core'
+import { dayMainColor, getDailyColor, pickDistinctColors } from '@hueday/core'
 import type { AppEnv, Bindings } from '../types'
 import { errorJson } from '../errors'
 import { judgeWithGemini, nameColor } from '../gemini'
@@ -60,12 +60,12 @@ entries.get('/', async (c) => {
   )
     .bind(c.get('userId'), `${month}-01`, `${month}-31`)
     .all<{ date: string; mode: string; note: string | null; dc: string | null }>()
-  const days = new Map<string, { date: string; mode: string; colors: string[]; photoCount: number; hasNote: boolean }>()
+  const days = new Map<string, { date: string; mode: string; colors: string[]; mainColor: string | null; photoCount: number; hasNote: boolean }>()
   const raw = new Map<string, string[]>()
   for (const r of results) {
     let d = days.get(r.date)
     if (!d) {
-      days.set(r.date, (d = { date: r.date, mode: r.mode, colors: [], photoCount: 0, hasNote: !!r.note }))
+      days.set(r.date, (d = { date: r.date, mode: r.mode, colors: [], mainColor: null, photoCount: 0, hasNote: !!r.note }))
       raw.set(r.date, [])
     }
     if (r.dc !== null) {
@@ -73,7 +73,10 @@ entries.get('/', async (c) => {
       raw.get(r.date)!.push(...(JSON.parse(r.dc) as string[]))
     }
   }
-  for (const [date, d] of days) d.colors = pickDistinctColors(raw.get(date)!, 4)
+  for (const [date, d] of days) {
+    d.colors = pickDistinctColors(raw.get(date)!, 4)
+    d.mainColor = dayMainColor(raw.get(date)!.length ? [{ dominantColors: raw.get(date)! }] : []) // 月色票海報用：當天最大的一群顏色
+  }
   return c.json({ month, days: [...days.values()] })
 })
 

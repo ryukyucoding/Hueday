@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@hueday/core": "*",
+    "@resvg/resvg-wasm": "2.4.0",
+    "satori": "0.15.2",
+    "satori-html": "^0.3.2",
     "vue": "^3.5.0",
     "vue-router": "^4.5.0"
   },
@@ -19,7 +22,7 @@
     "typescript": "~5.9.0",
     "vite": "^6.3.0",
     "vite-plugin-pwa": "^1.0.0",
-    "vue-tsc": "^3.0.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "vue-tsc": "^3.0.0"
   }
 }

@@ -22,42 +22,45 @@ P20: 統一錯誤格式：API 全面 {error:{code,message}}（新增 app.notFoun
 P21: 限流（apps/api/src/rateLimit.ts）：KV 固定視窗計數器，每位使用者每分鐘 upload≤10、gemini≤20、render≤30，超過回 429 + Retry-After（秒數=到下一分鐘）+ 統一錯誤格式；KV 非原子，屬近似限流（已寫入 DEPLOY.md）。設計取捨：上傳的 Gemini 額度不夠時『不讓上傳失敗』，改用示意結果並回 warnings:[ai_rate_limited]（單色日扣 2 次=判斷+色名、集色日 1 次；沒有 key 的 mock 模式不扣）；月回顧的主要動作就是 Gemini，所以超過直接 429，命中快取不扣額度；產圖只有未命中快取才扣額度。上傳格式白名單 jpeg/png/webp/heic/heif（其餘 415），10MB 上限（413，剛好 10MB 可以）。產圖快取（render/renderCache.ts）：Cache API，key=使用者+模板+全部查詢參數(排序)+資料版本(_v)+RENDER_VERSION；資料版本由 D1 算出（collage/swatch=當天 Entry+照片數+最後建立時間；compare=今年+去年；stats/palette=使用者所有照片；recap=同上+KV 回顧文字 hash），所以新增照片/重產回顧後舊快取自動不再命中；對使用者回 Cache-Control: private,no-cache（避免瀏覽器留舊圖）、存進快取的是 immutable；X-Render-Cache: hit|miss；satori 靜默回傳空 PNG 時視為失敗且不快取；模擬模式不讀寫快取。實測（本地 wrangler dev，同一份 PNG 約 2.7MB）：未命中 5.55s / 5.84s / 5.63s，命中 0.009–0.015s（約快 400 倍）；新增照片後 miss→再請求 hit；改 grain 參數 miss→hit。注意：Cache API 在 *.workers.dev 不生效（需自訂網域）、產圖 CPU 遠超免費方案 10ms（需 Workers Paid），皆已列入 DEPLOY.md 與使用者待辦。測試：api 106 個（限流含視窗重置/使用者隔離/cost 整批拒絕、上傳 11 次→429、Gemini/recap/render 額度、格式白名單、10MB 邊界、快取 key 與 dataVersion 失效）。Worker 2137 KiB / gzip 735 KiB。
 P22: README.md（一句話 + 三種模式 + 6 種限動模板、截圖表格、mermaid 架構圖、主要 API、第三方服務、本地開發/seed/截圖/測試、部署連到 DEPLOY.md）。根目錄補 npm run migrate:local 捷徑。『README 內所有指令在本地實際跑過一次』的做法：把專案複製到全新目錄（不含 node_modules/.wrangler/dist），從頭依 README 順序執行——npm install → build → test（core 185 / api 106 / web 19）→ seed（沒 migrate 時給清楚提示）→ migrate:local → seed → SEED_USER/SEED_TODAY seed → dev（health OK；沒 key 為 mock、寫入 apps/api/.dev.vars 後真的去呼叫 Gemini）→ screenshots（含沒有 dev server 時 exit 2 的提示）→ gen-icons → 各 workspace 的 test → ?uid= 與 ?simulate=/__simulate。過程只發現 README 自己的問題一處：缺 migrate:local 捷徑（已補）。22 步全部完成，沒有任何步驟被標成 [!]。
 
+P23（追加，使用者要求改用 Cloudflare 免費方案，並同意修改專案規則第 2 條）：**限動產圖從 Worker 搬到瀏覽器**。原因：satori + resvg 產圖 CPU 遠超過 Workers 免費方案每次請求 10 ms 的上限。做法：HTML 模板（collage/stats/swatch/compare/recap/poster）與 RenderSpec（HTML + 字型要用到的字）從 apps/api 搬進 packages/core（含測試，新增 specs 測試檢查版面上每個字都在字型子集裡）；apps/web/src/render/ 新增 Web Worker（satori@0.15.2 + satori-html + @resvg/resvg-wasm@2.4.0）、資料載入（data.ts，各模板資料來源與原本 Worker 端完全相同；照片先縮到長邊 900px 再內嵌）、字型載入（fonts.ts）、Worker 管理（client.ts：被取消就 terminate 並重建，避免舊運算擋住新請求）。API：移除 /api/render、renderCache、workers-og；新增 GET /api/font（字型代理：白名單字型/字重、text≤800 字、KV 快取、immutable，限流 font 30/分；因為瀏覽器向 Google Fonts 要字型一定拿到 woff2，但 satori 只吃 TTF/OTF/WOFF，所以要由 Worker 不帶 UA 去要 TTF）；GET /api/entries?month= 新增每天的 mainColor（月色票用）；限流 bucket render→font；模擬 render-fail 改由前端處理。部署：wrangler.toml 加 [assets]（Worker 同時提供前端靜態檔，run_worker_first=['/api/*']，SPA fallback），所以只有一個網址、不需要 Pages/自訂網域/付費方案；新增 npm run deploy（build core→web→wrangler deploy，loop 不會執行）；根目錄 build 順序改 core→web→api。Worker 大小 735 KiB→30 KiB（gzip）。**踩到的坑**：(1) satori 0.33 依賴 harfbuzzjs，它以『Worker 腳本所在資料夾』找 hb.wasm，dev 與正式建置都找不到（Vite 預先打包＋資產雜湊路徑），所以固定使用之前驗證過、沒有 harfbuzz 依賴的 satori 0.15.2 與 resvg-wasm 2.4.0（版本釘死，升級前要先確認 hb.wasm 的載入）；(2) 這個 workspace 的 npm 會把 package.json 改回鎖檔裡的舊版本，最後是直接編輯鎖檔條目才釘住；(3) PWA 外掛不接受預先快取 >2MB 的 wasm，改成 runtimeCaching（第一次用到才下載）。驗證：Playwright 在瀏覽器端產出 6 種模板 PNG（1080×1920，沙盒無頭瀏覽器 1.4–7 秒）、完全沒呼叫 /api/render；正式建置（單一網址 wrangler dev）首頁/日曆/SPA fallback/產圖下載通過；錯誤情境 20 項重跑全過；core 241 / api 69 / web 19 測試。
+
 ---
 
-# 使用者待辦（最終清單）
+# 使用者待辦（最終清單，免費方案版本）
 
-## 1. 要申請 / 準備的東西
-- [ ] **Cloudflare 帳號**，並升級到 **Workers Paid**：產圖（satori + resvg）本地實測約 5 秒 CPU，免費方案 CPU 上限 10 ms，一定會失敗。
-- [ ] **自訂網域**：PNG 快取用 Cache API，在 `*.workers.dev` 不生效（每次都重新產圖，很慢）。綁網域後看回應標頭 `X-Render-Cache: hit` 確認。
-- [ ] **Gemini API key**（Google AI Studio 申請）：正式環境 `npx wrangler secret put GEMINI_API_KEY`；本地放 `apps/api/.dev.vars`（已在 .gitignore）。沒有 key 也能用，只是 AI 結果是示意資料（畫面標示『示意』）。
-- Google Fonts 不需要 key（Worker 會用 `text=` 只抓用到的字並快取在 KV）。
+## 1. 要準備的東西
+- [ ] **Cloudflare 帳號（免費即可）**。不需要 Workers Paid、不需要自訂網域、不需要 Pages。
+- [ ] **R2 需要先在帳號綁付款方式才能啟用**（據我所知；免費額度 10 GB，用量在額度內不會扣款）。若完全不想綁卡，照片可以改存 D1（需要改程式）。
+- [ ] （選配）**Gemini API key**（Google AI Studio 申請）：`npx wrangler secret put GEMINI_API_KEY`；本地放 `apps/api/.dev.vars`。沒有 key 也能用，AI 結果是示意資料（畫面標示『示意』）。
 
 ## 2. 部署步驟（詳細指令在 `apps/api/DEPLOY.md`）
-- [ ] `npx wrangler login`
+- [ ] `npm install`，然後 `cd apps/api && npx wrangler login`
 - [ ] `npx wrangler d1 create hueday` → 把 database_id 填進 `apps/api/wrangler.toml`
 - [ ] `npx wrangler r2 bucket create hueday-photos`
 - [ ] `npx wrangler kv namespace create CACHE` → 把 id 填進 `wrangler.toml`
-- [ ] `npx wrangler d1 migrations apply DB --remote`（在 `apps/api`，共 0001、0002 兩支 migration）
-- [ ] `npx wrangler secret put GEMINI_API_KEY`
-- [ ] `npx wrangler deploy`（在 `apps/api`）
-- [ ] Cloudflare Pages：build `npm run build -w packages/core && npm run build -w apps/web`，output `apps/web/dist`；讓 `/api/*` 導向 Worker（同網域 Worker route）
-- [ ] 綁定自訂網域
-- **不要**在正式環境設定 `ALLOW_SIMULATE`（那是本地開發用的錯誤模擬開關；沒設定時 `X-Simulate` header 會被完全忽略，已有測試）。
+- [ ] `npx wrangler d1 migrations apply DB --remote`（共 0001、0002 兩支 migration）
+- [ ] （選配）`npx wrangler secret put GEMINI_API_KEY`
+- [ ] 回到根目錄 `npm run deploy`，完成後用印出的 `https://hueday-api.<帳號>.workers.dev` 網址
+- [ ] 手機開網址 → 加入主畫面
+- **不要**在正式環境設定 `ALLOW_SIMULATE`（沒設定時 `X-Simulate` header 會被忽略，已有測試）。
 
 ## 3. 標成 [!] 的步驟
-- 沒有。22 步全部是 [x]。
+- 沒有。22 步全部是 [x]（另有追加的 P23：產圖改到瀏覽器）。
 
 ## 4. 我在這個環境無法驗證，請你在真實環境確認
-- [ ] **真機分享**：行動版 Safari / Chrome 的 `navigator.share({ files })`（選 Instagram）。桌面 Chromium 的下載流程已實測；分享流程只有單元測試（feature detection + 取消 + 失敗退回下載）。
-- [ ] **真的 Gemini**：判斷準確度、詩意色名品質、月總結是否落在 80–120 字（不合格會退回示意文字，並且不快取）。本地只驗證了請求格式、失敗分類與降級。
-- [ ] **真的 Cloudflare**：Workers Paid 的 CPU/記憶體是否足夠、Worker 大小（本地 2137 KiB / gzip 735 KiB，免費方案上限 3 MB gzip 沒問題）、D1/R2/KV remote、Pages → Worker 的 `/api` 路由、Cache API 在自訂網域的命中。
-- [ ] **中文字型**：Worker 從 Cloudflare 邊緣抓 Google Fonts（本地沙盒可以，正式環境請看產出的 PNG 有沒有豆腐字）。
+- [ ] **真機產圖**：手機上的速度與記憶體。我只在沙盒的無頭 Chromium 驗證（1.4–7 秒、1080×1920）；iOS Safari／舊款 Android 的 Web Worker（module）、WebAssembly 記憶體、是否會被系統殺掉，請實測。太慢或當掉的話，可以把輸出尺寸調小（例如 720×1280）。
+- [ ] **真機分享**：行動版 Safari / Chrome 的 `navigator.share({ files })`（選 Instagram）。桌面 Chromium 的下載流程已實測；分享流程只有單元測試。
+- [ ] **真的 Gemini**：判斷準確度、詩意色名品質、月總結是否落在 80–120 字（不合格會退回示意文字，並且不快取）。
+- [ ] **真的 Cloudflare**：D1/R2/KV remote、Workers Assets 的路由（本地 wrangler dev 已驗證）、`/api/font` 從 Cloudflare 邊緣向 Google Fonts 取 TTF（本地沙盒可以；正式環境請看產出的圖有沒有豆腐字）。
+- [ ] **Worker CPU**：免費方案每次請求 10 ms。API 都很輕，但『上傳照片』要做 base64 與資料庫寫入，若偶爾出現 1102 錯誤請告訴我。
 - [ ] **PWA**：iOS / Android 加入主畫面、離線時 App 外殼可開（各頁會顯示離線狀態，沒有獨立 offline.html）。
 - [ ] **HEIC**：非 Safari 瀏覽器無法解碼 HEIC 時，前端會送原檔——這種照片沒有主色（漸層改用今日色）。
 
 ## 5. 已知限制（之後可以做）
-- **身分只是匿名 UUID（`X-User-Id`），沒有登入或驗證**：任何人拿到某個 UUID 就能讀寫那位使用者的資料。上線給不特定人使用前，需要真正的登入（階段二）。
+- **身分只是匿名 UUID（`X-User-Id`），沒有登入或驗證**：知道網址的人都能使用、也能上傳照片到你的 R2；知道某個 UUID 就能讀寫那位使用者的資料。自己用建議別公開網址或用 Cloudflare Access（免費）保護；對大眾開放前需要真正的登入（階段二）。
+- KV 免費方案每天只能寫 1,000 次（限流、字型與月回顧快取會寫）：個人使用足夠，多人會先碰到。
 - 限流用 KV 計數器，非原子（近似）；要嚴格限流請改 Durable Object 或 Rate Limiting binding。
+- satori / resvg-wasm 版本釘死在 0.15.2 / 2.4.0（原因見 P23），升級前要先確認 hb.wasm 的載入方式。
 - 沒有刪除照片 / 修改當天模式的功能；備註是唯一可編輯的欄位。
 - 選配的中央氣象署『天氣顏色題』沒有做。
 - 網頁版刻意跳過（留給原生 App）：IG Share to Stories、每日提醒推播、照片 EXIF、桌面小工具、會動的 MP4 限動。

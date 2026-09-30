@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { friendlyMessage } from '../lib/errors'
-import { fetchRenderBlob, renderUrl, type RenderParams } from '../lib/render'
+import { fetchRenderBlob, renderKey, type RenderParams } from '../lib/render'
 
 const props = defineProps<{ params: RenderParams; active: boolean; label: string; debounceMs?: number }>()
 const emit = defineEmits<{ blob: [blob: Blob | null] }>()
@@ -40,7 +40,7 @@ async function load(key: string) {
 
 // 只在這一頁被看到時才產圖；參數（風格、顆粒）變更時 debounce，避免拖動滑桿時狂打 API
 watch(
-  () => [renderUrl(props.params), props.active] as const,
+  () => [renderKey(props.params), props.active] as const,
   ([key, active]) => {
     clearTimeout(timer)
     if (!active || key === fetchedKey) return
@@ -53,7 +53,7 @@ watch(
 watch(
   () => props.active,
   (a) => {
-    if (a && url.value && renderUrl(props.params) === fetchedKey) fetch(url.value).then((r) => r.blob()).then((b) => emit('blob', b))
+    if (a && url.value && renderKey(props.params) === fetchedKey) fetch(url.value).then((r) => r.blob()).then((b) => emit('blob', b))
   }
 )
 
@@ -72,7 +72,7 @@ onBeforeUnmount(() => {
       <p v-if="loading" class="badge">產生中…</p>
       <div v-else-if="errorMsg" class="fail" role="alert" data-testid="slide-error">
         <p>{{ errorMsg }}</p>
-        <button data-testid="slide-retry" @click="load(renderUrl(params))">重試</button>
+        <button data-testid="slide-retry" @click="load(renderKey(params))">重試</button>
       </div>
     </div>
   </div>

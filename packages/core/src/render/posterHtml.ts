@@ -1,4 +1,7 @@
-import { STORY_HEIGHT, STORY_WIDTH, emptyStripeSvg, layoutMonthPoster, readableTextColor } from '@hueday/core'
+import { readableTextColor } from '../color'
+import { STORY_HEIGHT, STORY_WIDTH } from '../templates/collage'
+import { emptyStripeSvg, layoutMonthPoster } from '../templates/monthPoster'
+import { base64Ascii } from './base64'
 import { BODY_FONT, DISPLAY_FONT, esc } from './collageHtml'
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -20,7 +23,7 @@ export function posterHtml(input: PosterHtmlInput): string {
   const t = posterTexts(input.month)
   const disp = `font-family:${DISPLAY_FONT},${BODY_FONT};`
   const W = STORY_WIDTH
-  const stripe = `data:image/svg+xml;base64,${btoa(emptyStripeSvg(l.cell))}`
+  const stripe = `data:image/svg+xml;base64,${base64Ascii(emptyStripeSvg(l.cell))}`
 
   const weekdays = l.weekdays.labels
     .map(

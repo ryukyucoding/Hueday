@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeStats } from '@hueday/core'
+import { computeStats } from '../stats'
 import { recapHtml, recapTexts } from './recapHtml'
 
 const stats = computeStats([{ date: '2025-09-01', photos: [{ dominantColors: ['#FF0000'] }] }, { date: '2025-09-02', photos: [{ dominantColors: ['#0000FF'] }] }], '2025-09', '2025-09-02')

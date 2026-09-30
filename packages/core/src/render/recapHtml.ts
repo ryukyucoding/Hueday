@@ -1,4 +1,5 @@
-import { STORY_HEIGHT, STORY_WIDTH, type MonthStats } from '@hueday/core'
+import type { MonthStats } from '../stats'
+import { STORY_HEIGHT, STORY_WIDTH } from '../templates/collage'
 import { BODY_FONT, DISPLAY_FONT, esc } from './collageHtml'
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']

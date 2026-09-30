@@ -1,4 +1,4 @@
-import { collageFooterText, countCollectedColors, formatStoryDate, layoutCollage, STORY_HEIGHT, STORY_WIDTH } from '@hueday/core'
+import { collageFooterText, countCollectedColors, formatStoryDate, layoutCollage, STORY_HEIGHT, STORY_WIDTH } from '../templates/collage'
 
 export type CollageHtmlInput = {
   date: string

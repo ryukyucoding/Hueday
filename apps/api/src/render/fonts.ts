@@ -1,10 +1,10 @@
+import { uniqueChars } from '@hueday/core'
+
 export type LoadedFont = { name: string; data: ArrayBuffer; weight: 400 | 500 | 700; style: 'normal' }
 
 const CSS_BASE = 'https://fonts.googleapis.com/css2'
 
-export function uniqueChars(text: string): string {
-  return Array.from(new Set(Array.from(text + ' '))).sort().join('')
-}
+export { uniqueChars }
 
 function hash(s: string): string {
   let h = 0x811c9dc5

@@ -13,7 +13,8 @@ packages/core   純 TypeScript 邏輯，不可 import 任何 DOM / Vue / Worker 
 
 ## 架構鐵則
 1. 抽色、色相分類、漸層、統計等邏輯只寫在 `packages/core`，前端與 Worker 都從這裡 import。
-2. 限動圖一律由 Worker 產 PNG（`/api/render`），前端不得用 html2canvas 之類截圖。
+2. 限動圖一律由 `packages/core` 的版面與 HTML 模板產生，在**瀏覽器的 Web Worker** 用 satori + resvg-wasm 轉成 PNG（`apps/web/src/render/`），不得用 html2canvas 之類截圖。模板只寫一次（core），之後包成原生 App 也能沿用。
+   - 原本規定由 Worker 產 PNG；但產圖的 CPU 用量遠超過 Cloudflare Workers 免費方案的 10 ms 上限，為了讓使用者不必付費，經使用者同意改到瀏覽器端。Worker 只提供 `/api/font`（向 Google Fonts 取 TTF 子集並快取）。
 3. 任何 API key 只能透過 Worker 的 `env` 讀取（`wrangler secret` / `.dev.vars`），絕不進前端或 git。`.dev.vars` 必須在 `.gitignore`。
 4. `GEMINI_API_KEY` 不存在時，Gemini 相關端點回傳 mock 資料並帶 `"mock": true`，整個 App 在沒有 key 的情況下也要能完整操作。
 5. 使用者身分：前端產生匿名 UUID 存 localStorage（讀寫包 try/catch），以 `X-User-Id` header 傳給 API。

@@ -40,7 +40,7 @@ export function photoObjectUrl(url: string): Promise<string> {
   return p
 }
 
-export type DaySummary = { date: string; mode: Mode; colors: string[]; photoCount: number; hasNote: boolean }
+export type DaySummary = { date: string; mode: Mode; colors: string[]; mainColor: string | null; photoCount: number; hasNote: boolean }
 export type MonthSummary = { month: string; days: DaySummary[] }
 
 export const getMonth = (month: string) => api<MonthSummary>(`/api/entries?month=${month}`)

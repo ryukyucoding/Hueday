@@ -2,10 +2,10 @@ import type { Context } from 'hono'
 import { errorJson } from './errors'
 import type { AppEnv } from './types'
 
-export type Bucket = 'upload' | 'gemini' | 'render'
+export type Bucket = 'upload' | 'gemini' | 'font'
 
 /** 每位使用者每分鐘的上限 */
-export const LIMITS: Record<Bucket, number> = { upload: 10, gemini: 20, render: 30 }
+export const LIMITS: Record<Bucket, number> = { upload: 10, gemini: 20, font: 30 }
 
 const WINDOW_MS = 60_000
 

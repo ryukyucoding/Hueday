@@ -41,7 +41,7 @@ describe('統一錯誤格式 { error: { code, message } }', () => {
   it('既有的 4xx 也都是這個格式', async () => {
     shape(await (await app.request('/api/entries/bad', { headers: H() }, env)).json())
     shape(await (await app.request('/api/entries/2025-01-01')).json())
-    shape(await (await app.request('/api/render?template=x&date=2025-01-01', { headers: H() }, env)).json())
+    shape(await (await app.request('/api/font?family=Nope&text=a', { headers: H() }, env)).json())
   })
 })
 
@@ -98,7 +98,7 @@ describe('開發用錯誤模擬（X-Simulate）', () => {
     expect(((await (await upload(undefined, '2025-11-20')).json()) as any).warnings).toEqual([])
   })
 
-  it('rate-limit → 429 + Retry-After；server-error → 500；render-fail → 500 render_failed', async () => {
+  it('rate-limit → 429 + Retry-After；server-error → 500；已移除的 render-fail 會被忽略', async () => {
     const e = withSim()
     const rl = await app.request('/api/entries/2025-01-01', { headers: H({ 'X-Simulate': 'rate-limit' }) }, e)
     expect(rl.status).toBe(429)
@@ -107,9 +107,8 @@ describe('開發用錯誤模擬（X-Simulate）', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect((await app.request('/api/entries/2025-01-01', { headers: H({ 'X-Simulate': 'server-error' }) }, e)).status).toBe(500)
     spy.mockRestore()
-    const r = await app.request('/api/render?template=collage&date=2025-01-01', { headers: H({ 'X-Simulate': 'render-fail' }) }, e)
-    expect(r.status).toBe(500)
-    expect(((await r.json()) as any).error.code).toBe('render_failed')
+    // 產圖改在瀏覽器，render-fail 由前端處理；API 不認得它，照常回應
+    expect((await app.request('/api/entries/2025-01-01', { headers: H({ 'X-Simulate': 'render-fail' }) }, e)).status).toBe(200)
   })
 
   it('recap：Gemini 失敗時回報 degraded，且示意文字不進快取（稍後重試可拿到真的）', async () => {

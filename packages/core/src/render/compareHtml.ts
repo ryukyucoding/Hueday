@@ -1,4 +1,4 @@
-import { STORY_HEIGHT, STORY_WIDTH, formatStoryDate } from '@hueday/core'
+import { STORY_HEIGHT, STORY_WIDTH, formatStoryDate } from '../templates/collage'
 import { BODY_FONT, DISPLAY_FONT, esc } from './collageHtml'
 
 export const COMPARE_HALF = STORY_HEIGHT / 2

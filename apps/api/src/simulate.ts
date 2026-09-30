@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import type { AppEnv, Bindings } from './types'
 
 /** 開發用：模擬各種錯誤，讓前端的錯誤畫面可以被實際看到。只有 ALLOW_SIMULATE=1（本地 wrangler dev）時才生效。 */
-export const SIMULATIONS = ['upload-fail', 'gemini-quota', 'gemini-timeout', 'gemini-error', 'render-fail', 'rate-limit', 'server-error'] as const
+export const SIMULATIONS = ['upload-fail', 'gemini-quota', 'gemini-timeout', 'gemini-error', 'rate-limit', 'server-error'] as const
 export type Simulation = (typeof SIMULATIONS)[number]
 
 export function getSimulation(c: Context<AppEnv>): Simulation | null {

@@ -9,11 +9,12 @@
   ],
   "scripts": {
     "dev": "concurrently -n web,api -c magenta,cyan \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
-    "build": "npm run build -w packages/core && npm run build -w apps/api && npm run build -w apps/web",
+    "build": "npm run build -w packages/core && npm run build -w apps/web && npm run build -w apps/api",
     "test": "npm run test --workspaces --if-present",
     "seed": "npm run seed -w apps/api",
     "screenshots": "node scripts/screenshots.mjs",
-    "migrate:local": "npm run migrate:local -w apps/api"
+    "migrate:local": "npm run migrate:local -w apps/api",
+    "deploy": "npm run build -w packages/core && npm run build -w apps/web && npm run deploy -w apps/api"
   },
   "devDependencies": {
     "concurrently": "^10.0.5",

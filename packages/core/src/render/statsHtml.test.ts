@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeStats } from '@hueday/core'
+import { computeStats } from '../stats'
 import { statsHtml, statsTexts } from './statsHtml'
 
 const entries = [

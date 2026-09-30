@@ -117,6 +117,7 @@
 - [ ] 排版座標函式有測試
 
 ### [x] P10 Worker 產生 PNG
+> 註：已由追加的 P23 改為在**瀏覽器端**產圖（Cloudflare 免費方案 CPU 上限 10 ms，Worker 端跑不動）。這一步當時的 Worker 端實作已移除，內容保留作為歷史紀錄。
 **要做的事**
 - 使用 `workers-og`（或 `satori` + `@resvg/resvg-wasm`）在 Worker 產 1080×1920 PNG：`GET /api/render?template=collage&date=YYYY-MM-DD`。
 - 底圖：嵌入 P8 的 SVG（data URI）；照片：從 R2 讀出轉 data URI。

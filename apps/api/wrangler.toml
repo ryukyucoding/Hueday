@@ -2,6 +2,14 @@ name = "hueday-api"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
 
+# 前端靜態檔也由這個 Worker 提供（Workers Assets：免費、不限請求數，不會消耗 Worker 的 CPU 額度）。
+# 只有 /api/* 會先進 Worker；其他路徑直接回靜態檔，找不到時回 index.html（單頁應用）。
+# 需要先 build 前端：npm run build -w apps/web
+[assets]
+directory = "../web/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
 [vars]
 GEMINI_MODEL = "gemini-2.5-flash"
 

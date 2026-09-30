@@ -12,7 +12,7 @@
 | **Retro** | 沒有瀏覽數、按讚數、追蹤者——純粹記錄。日曆牆、**去年的今天**、**月總結**（Spotify Wrapped 口吻）。 |
 | **Strava** | 把顏色數據做成分享卡：連續記錄天數、收集色數、色相分佈、本月主色。 |
 
-限動模板共 6 種，全部由 Worker 產生 1080×1920 PNG：
+限動模板共 6 種，全部在你的手機／瀏覽器裡產生 1080×1920 PNG（不需要伺服器端產圖）：
 
 `Color Hunt 拼貼` · `Strava 風數據卡` · `單色日色票` · `去年 vs 今年` · `月總結` · `月色票海報`
 
@@ -31,33 +31,34 @@
 flowchart LR
   subgraph Client["瀏覽器（Vue 3 PWA）"]
     UI["UI：今天 / 日曆 / 分享"]
-    C1["packages/core<br/>抽色 · 色相 · 漸層 · 統計 · 版面"]
+    C1["packages/core<br/>抽色 · 色相 · 漸層 · 統計 · 版面 · HTML 模板"]
+    RW["Web Worker：產圖<br/>satori (HTML→SVG) + resvg-wasm (SVG→PNG)"]
   end
-  subgraph Worker["Cloudflare Worker（Hono）"]
+  subgraph Worker["Cloudflare Worker（Hono）＋ 靜態檔"]
     API["/api/*"]
     C2["packages/core（同一份）"]
-    R["產圖：core 版面 → HTML → workers-og<br/>(Satori + resvg) → PNG"]
     RL["限流（KV 計數器）"]
+    ST["Workers Assets：前端靜態檔"]
   end
   UI -->|"X-User-Id + fetch"| API
+  UI --> C1 --> RW
   C1 -.->|共用| C2
   API --> D1[("D1<br/>entries · photos")]
   API --> R2[("R2<br/>照片")]
   API --> KV[("KV<br/>字型 · 月回顧 · 限流")]
-  API --> R
-  R --> Cache[("Cache API<br/>PNG 快取")]
   API -->|"照片判斷 · 色名 · 月回顧"| Gemini["Gemini API"]
-  R -->|"text= 只抓用到的字"| Fonts["Google Fonts"]
+  API -->|"/api/font：text= 只抓用到的字"| Fonts["Google Fonts"]
+  ST --> UI
 ```
 
 三個設計原則（讓未來包成原生 App 時不用重寫）：
 
 1. **核心邏輯是純 TypeScript**（`packages/core`，不碰 DOM/Vue/Worker API）：前端與 Worker 共用同一份抽色、色相分類、漸層、統計、版面座標。
-2. **模板渲染在後端**：`GET /api/render?template=…` 直接回 PNG，前端只負責顯示與分享，不用 html2canvas。
+2. **模板只寫一次**：版面座標與 HTML 模板都在 `packages/core`；在瀏覽器的 Web Worker 用 satori + resvg-wasm 轉成 PNG（不用 html2canvas，也不占用 Worker 的 CPU，所以 Cloudflare 免費方案就夠用）。
 3. **前端只負責 UI 與呼叫 API**：換 Capacitor 或 Expo 只需動 UI 層。
 
 ```
-apps/web        Vue 3 + Vite + TS 前端（PWA）
+apps/web        Vue 3 + Vite + TS 前端（PWA）；src/render/ 是瀏覽器端產圖（Web Worker）
 apps/api        Cloudflare Worker（Hono）＋ D1 / R2 / KV
 packages/core   純 TypeScript 邏輯（色票、抽色、漸層、統計、模板版面…）
 docs/           截圖
@@ -77,15 +78,15 @@ scripts/        圖示、截圖、共用腳本
 | `GET /api/photos/:id` | 串流照片 |
 | `GET /api/stats?month=` | 連續天數、收集色數、色相佔比、本月主色 |
 | `POST /api/recap?month=` | 月總結文字（同月只產一次，`force=1` 重產） |
-| `GET /api/render?template=&date=\|month=&style=&grain=` | 產出限動 PNG |
+| `GET /api/font?family=&weight=&text=` | 字型代理：向 Google Fonts 取 TTF 子集（只含用到的字），快取在 KV |
 
 ## 使用的第三方服務
 
 | 服務 | 用途 |
 | --- | --- |
 | **Gemini API** | Vision 判斷照片主體是否屬於目標顏色、詩意色名、月總結文案（`responseSchema` 結構化輸出） |
-| **Cloudflare Workers / D1 / R2 / KV / Cache API** | API、資料庫、照片儲存、字型／月回顧／限流、PNG 快取 |
-| **workers-og（Satori + resvg）** | 在 Worker 上把 HTML 版面轉成 PNG |
+| **Cloudflare Workers（含 Assets）/ D1 / R2 / KV** | API 與前端靜態檔、資料庫、照片儲存、字型／月回顧／限流 |
+| **satori + resvg-wasm**（瀏覽器端） | 在 Web Worker 裡把 HTML 版面轉成 PNG |
 | **Google Fonts（CSS2 `text=`）** | 中文字型只下載用到的字（Noto Sans TC + Fraunces），快取在 KV |
 | Vue 3、Vite、vite-plugin-pwa、Hono | 前端、建置、PWA、Worker 框架 |
 
@@ -149,13 +150,17 @@ npm test -w apps/web        # 分享、錯誤訊息、模板設定
 
 ## 部署
 
-需要 Cloudflare 帳號，步驟見 **[apps/api/DEPLOY.md](apps/api/DEPLOY.md)**（建立 D1/R2/KV、套用 migration、設定 secret、部署 Worker 與 Pages）。
+**Cloudflare 免費方案就夠，不需要付費、不需要自訂網域。** 整個 App 是一個 Worker：同時提供 `/api/*` 與前端靜態檔（Workers Assets），所以只有一個網址。限動圖在使用者的手機裡產生，不占用 Worker 的 CPU。
 
-幾件部署前一定要知道的事（細節在 DEPLOY.md）：
+```bash
+npm run deploy    # build core → 前端 → 部署（事前要先建立 D1/R2/KV 並把 id 填進 apps/api/wrangler.toml）
+```
 
-- 產圖很吃 CPU，**需要 Workers Paid 方案**（免費方案 CPU 上限 10 ms）。
-- PNG 快取使用 Cache API，**在 `*.workers.dev` 不生效，需要自訂網域**。
-- 限流是 KV 近似計數器（KV 非原子），要嚴格限流請改用 Durable Object。
+完整步驟、免費額度與注意事項見 **[apps/api/DEPLOY.md](apps/api/DEPLOY.md)**。幾件要知道的事：
+
+- R2（照片儲存）需要先在 Cloudflare 帳號綁付款方式才能啟用（用量在免費額度內不會扣款）。
+- **目前沒有登入**，知道網址的人都能使用；自己用建議不要公開網址，或用 Cloudflare Access 保護。
+- KV 免費方案每天只能寫 1,000 次，個人使用足夠。
 
 ## 專案文件
 
