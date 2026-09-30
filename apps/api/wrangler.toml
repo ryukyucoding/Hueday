@@ -21,4 +21,4 @@ migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "REPLACE_ME"
+id = "78b85f36a8ff42c0ae880e651ec8fad7"
