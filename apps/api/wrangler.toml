@@ -16,7 +16,7 @@ GEMINI_MODEL = "gemini-2.5-flash"
 [[d1_databases]]
 binding = "DB"
 database_name = "hueday"
-database_id = "REPLACE_ME"
+database_id = "fb93147d-fd2f-44a0-8106-012e2276092b"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
