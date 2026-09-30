@@ -20,5 +20,8 @@
     "concurrently": "^10.0.5",
     "playwright": "^1.56.1",
     "sharp": "^0.35.5"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

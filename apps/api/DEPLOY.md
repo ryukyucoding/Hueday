@@ -8,6 +8,7 @@
 
 ## 準備
 
+- **Node.js 22 以上**（`node -v` 確認；舊版會讓 wrangler 等套件裝不起來）。
 - 一個 Cloudflare 帳號（免費即可）。
 - **R2（照片儲存）需要先在帳號綁一張付款方式才能啟用**（據我所知；免費額度 10 GB，用量在額度內不會扣款）。如果你完全不想綁卡，照片可以改存 D1，需要改程式，跟我說。
 - （選配）Gemini API key：到 Google AI Studio 申請。沒有也能用，AI 結果會是示意資料。
@@ -55,3 +56,13 @@ npm run deploy
 - 第一次分享時瀏覽器會下載約 1.4 MB 的產圖引擎（wasm），之後會快取。
 - `ALLOW_SIMULATE` 只給本地開發用（`npm run dev` 已帶 `--var ALLOW_SIMULATE:1`），**不要**在正式環境設定。沒設定時 `X-Simulate` header 會被完全忽略（有測試）。
 - 之後改程式再部署，只要再跑一次 `npm run deploy`。資料表有變動時先跑 `npx wrangler d1 migrations apply DB --remote`。
+
+## 常見錯誤
+
+| 訊息 | 原因與解法 |
+| --- | --- |
+| `Unknown arguments: #, ...` | 你把指令連同後面的 `# 註解` 一起貼進 macOS 的 zsh 了。zsh 互動模式不把 `#` 當註解，請只貼指令本身。 |
+| `npm warn EBADENGINE ... required: { node: '>=22' }` 之後 `tsc: command not found` | Node 版本太舊，安裝沒完成。升級到 Node 22+ 後，刪掉 `node_modules` 重新 `npm install`。 |
+| `npm error ECONNRESET` | 網路中斷，安裝不完整。直接重跑 `npm install`（可能要重試幾次）。 |
+| `Please enable R2 through the Cloudflare Dashboard [code: 10042]` | 帳號還沒啟用 R2。到 Cloudflare Dashboard → R2 Object Storage 啟用（需要綁付款方式，用量在免費額度內不會扣款）。 |
+| `Invalid property: databaseId => Invalid uuid` | `wrangler.toml` 的 `database_id` 還是 `REPLACE_ME`，先完成第 1 步並填入。 |

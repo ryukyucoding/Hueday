@@ -94,17 +94,21 @@ scripts/        圖示、截圖、共用腳本
 
 ## 本地開發
 
-需求：Node.js 20+（開發時使用 22）。
+需求：**Node.js 22 以上**（wrangler、miniflare 等套件要求；用 `node -v` 確認，舊版可用 nvm 或 Homebrew 升級）。
+
+> 貼指令到 macOS 的 zsh 時，請不要帶 `#` 後面的註解（zsh 互動模式不把它當註解，會被當成參數）。下面的程式碼區塊都不含註解，說明放在區塊外。
 
 ```bash
 npm install
-npm run build          # 依序 build core → api（wrangler 打包驗證）→ web
-npm test               # 所有 workspace 的 vitest
+npm run build
+npm test
 ```
 
+`build` 依序建置 core → 前端 → api（wrangler 打包驗證）；`test` 會跑所有 workspace 的 vitest。
+
 ```bash
-npm run migrate:local  # 建立本地 D1 資料表（第一次、或 migrations 有更新時）
-npm run dev            # 同時啟動 Vite（http://localhost:5173）與 wrangler dev（8787）
+npm run migrate:local
+npm run dev
 ```
 
 `/api` 會由 Vite 代理到 8787。開 <http://localhost:5173> 即可使用。
@@ -122,7 +126,7 @@ GEMINI_API_KEY=你的金鑰
 ### 開發輔助
 
 ```bash
-npm run seed           # 在本地 D1/R2 塞過去 400 天的假資料（使用者 seed-user）
+npm run seed
 ```
 
 - 開 <http://localhost:5173/?uid=seed-user> 用假資料瀏覽（`?uid=` 只在 dev 模式生效），可看到日曆牆、去年的今天、月總結。
@@ -134,8 +138,8 @@ npm run seed           # 在本地 D1/R2 塞過去 400 天的假資料（使用�
 ### 截圖與手機版檢查
 
 ```bash
-npm run dev            # 另一個終端機先啟動；想要有內容先 npm run seed
-npm run screenshots    # iPhone 14 與 Pixel 7 各截三個 tab 存到 docs/screenshots/
+npm run dev
+npm run screenshots
 ```
 
 腳本會同時檢查：無水平捲動、文字 ≥ 15px、觸控目標 ≥ 44px，有問題會以非 0 結束。
@@ -143,9 +147,9 @@ npm run screenshots    # iPhone 14 與 Pixel 7 各截三個 tab 存到 docs/scre
 ### 測試
 
 ```bash
-npm test -w packages/core   # 抽色、色相、漸層、統計、模板版面…
-npm test -w apps/api        # 路由、限流、快取、Gemini（mock fetch）、模板 HTML；D1/R2/KV 用 wrangler 內建 miniflare
-npm test -w apps/web        # 分享、錯誤訊息、模板設定
+npm test -w packages/core
+npm test -w apps/api
+npm test -w apps/web
 ```
 
 ## 部署
@@ -153,7 +157,7 @@ npm test -w apps/web        # 分享、錯誤訊息、模板設定
 **Cloudflare 免費方案就夠，不需要付費、不需要自訂網域。** 整個 App 是一個 Worker：同時提供 `/api/*` 與前端靜態檔（Workers Assets），所以只有一個網址。限動圖在使用者的手機裡產生，不占用 Worker 的 CPU。
 
 ```bash
-npm run deploy    # build core → 前端 → 部署（事前要先建立 D1/R2/KV 並把 id 填進 apps/api/wrangler.toml）
+npm run deploy
 ```
 
 完整步驟、免費額度與注意事項見 **[apps/api/DEPLOY.md](apps/api/DEPLOY.md)**。幾件要知道的事：
