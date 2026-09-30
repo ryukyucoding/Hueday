@@ -5,6 +5,7 @@ import { errorJson } from '../errors'
 import { judgeWithGemini, nameColor } from '../gemini'
 import { getSimulation, simulatedFetch, withSimulatedKey } from '../simulate'
 import { enforce, hit } from '../rateLimit'
+import { photoKey, putPhoto } from '../photoStore'
 
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 /** 只接受這些圖片格式（HEIC/HEIF 是 iPhone 原檔；前端通常已壓成 JPEG） */
@@ -150,8 +151,8 @@ entries.post('/:date/photos', async (c) => {
   }
 
   const photoId = crypto.randomUUID()
-  const r2Key = `${userId}/${date}/${photoId}.jpg`
-  await c.env.PHOTOS.put(r2Key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type || 'image/jpeg' } })
+  const r2Key = photoKey(userId, date, photoId) // 欄位名稱是沿用的舊名，現在存的是 KV key
+  await putPhoto(c.env.CACHE, r2Key, await file.arrayBuffer(), file.type || 'image/jpeg')
   await c.env.DB.prepare('INSERT INTO photos (id, entry_id, r2_key, dominant_colors, created_at) VALUES (?, ?, ?, ?, ?)')
     .bind(photoId, entry.id, r2Key, JSON.stringify(colors), now)
     .run()

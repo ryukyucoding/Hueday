@@ -24,19 +24,20 @@ P22: README.md（一句話 + 三種模式 + 6 種限動模板、截圖表格、m
 
 P23（追加，使用者要求改用 Cloudflare 免費方案，並同意修改專案規則第 2 條）：**限動產圖從 Worker 搬到瀏覽器**。原因：satori + resvg 產圖 CPU 遠超過 Workers 免費方案每次請求 10 ms 的上限。做法：HTML 模板（collage/stats/swatch/compare/recap/poster）與 RenderSpec（HTML + 字型要用到的字）從 apps/api 搬進 packages/core（含測試，新增 specs 測試檢查版面上每個字都在字型子集裡）；apps/web/src/render/ 新增 Web Worker（satori@0.15.2 + satori-html + @resvg/resvg-wasm@2.4.0）、資料載入（data.ts，各模板資料來源與原本 Worker 端完全相同；照片先縮到長邊 900px 再內嵌）、字型載入（fonts.ts）、Worker 管理（client.ts：被取消就 terminate 並重建，避免舊運算擋住新請求）。API：移除 /api/render、renderCache、workers-og；新增 GET /api/font（字型代理：白名單字型/字重、text≤800 字、KV 快取、immutable，限流 font 30/分；因為瀏覽器向 Google Fonts 要字型一定拿到 woff2，但 satori 只吃 TTF/OTF/WOFF，所以要由 Worker 不帶 UA 去要 TTF）；GET /api/entries?month= 新增每天的 mainColor（月色票用）；限流 bucket render→font；模擬 render-fail 改由前端處理。部署：wrangler.toml 加 [assets]（Worker 同時提供前端靜態檔，run_worker_first=['/api/*']，SPA fallback），所以只有一個網址、不需要 Pages/自訂網域/付費方案；新增 npm run deploy（build core→web→wrangler deploy，loop 不會執行）；根目錄 build 順序改 core→web→api。Worker 大小 735 KiB→30 KiB（gzip）。**踩到的坑**：(1) satori 0.33 依賴 harfbuzzjs，它以『Worker 腳本所在資料夾』找 hb.wasm，dev 與正式建置都找不到（Vite 預先打包＋資產雜湊路徑），所以固定使用之前驗證過、沒有 harfbuzz 依賴的 satori 0.15.2 與 resvg-wasm 2.4.0（版本釘死，升級前要先確認 hb.wasm 的載入）；(2) 這個 workspace 的 npm 會把 package.json 改回鎖檔裡的舊版本，最後是直接編輯鎖檔條目才釘住；(3) PWA 外掛不接受預先快取 >2MB 的 wasm，改成 runtimeCaching（第一次用到才下載）。驗證：Playwright 在瀏覽器端產出 6 種模板 PNG（1080×1920，沙盒無頭瀏覽器 1.4–7 秒）、完全沒呼叫 /api/render；正式建置（單一網址 wrangler dev）首頁/日曆/SPA fallback/產圖下載通過；錯誤情境 20 項重跑全過；core 241 / api 69 / web 19 測試。
 
+P24（追加，使用者不想綁卡）：**照片從 R2 改存到 KV**。原因：R2 需要在 Cloudflare 帳號綁付款方式才能啟用（使用者實測 wrangler 回 code 10042）。不選 D1：D1 的 BLOB 讀出來是一大串數字陣列，CPU 很重，免費方案 10 ms 撐不住，單列也有 2 MB 上限；KV 可直接存二進位、單筆 25 MiB。做法：新增 apps/api/src/photoStore.ts（putPhoto/getPhoto，KV metadata 存 content-type，讀取用 stream），沿用 CACHE 這個 namespace、key 為 photo:{userId}:{date}:{photoId}；photos.r2_key 欄位是沿用的舊名（現在存 KV key，不做 migration）；移除 PHOTOS 綁定與 wrangler.toml 的 r2_buckets；seed 腳本與測試同步改。取捨：KV 免費額度 1 GB 儲存、每天 1,000 次寫入（上傳一張約 2–4 次寫入：照片 + 限流計數，有 Gemini key 再加額度計數）、KV 最終一致（同地區寫入後立即可讀，跨地區最長約 1 分鐘）。驗證：api 74 個測試（含 0–255 全位元組往返、近 10 MB 大檔、KV 被清掉回 404）；本地 wrangler dev 上傳後讀回位元組完全相同；正式建置 + 重新 seed 後，首頁/日曆/去年今天/瀏覽器產圖下載全通過。
+
 ---
 
 # 使用者待辦（最終清單，免費方案版本）
 
 ## 1. 要準備的東西
 - [ ] **Cloudflare 帳號（免費即可）**。不需要 Workers Paid、不需要自訂網域、不需要 Pages。
-- [ ] **R2 需要先在帳號綁付款方式才能啟用**（據我所知；免費額度 10 GB，用量在額度內不會扣款）。若完全不想綁卡，照片可以改存 D1（需要改程式）。
+- [ ] **不需要綁信用卡**：照片存在 KV，不用 R2。
 - [ ] （選配）**Gemini API key**（Google AI Studio 申請）：`npx wrangler secret put GEMINI_API_KEY`；本地放 `apps/api/.dev.vars`。沒有 key 也能用，AI 結果是示意資料（畫面標示『示意』）。
 
 ## 2. 部署步驟（詳細指令在 `apps/api/DEPLOY.md`）
 - [ ] `npm install`，然後 `cd apps/api && npx wrangler login`
 - [ ] `npx wrangler d1 create hueday` → 把 database_id 填進 `apps/api/wrangler.toml`
-- [ ] `npx wrangler r2 bucket create hueday-photos`
 - [ ] `npx wrangler kv namespace create CACHE` → 把 id 填進 `wrangler.toml`
 - [ ] `npx wrangler d1 migrations apply DB --remote`（共 0001、0002 兩支 migration）
 - [ ] （選配）`npx wrangler secret put GEMINI_API_KEY`
@@ -51,14 +52,14 @@ P23（追加，使用者要求改用 Cloudflare 免費方案，並同意修改�
 - [ ] **真機產圖**：手機上的速度與記憶體。我只在沙盒的無頭 Chromium 驗證（1.4–7 秒、1080×1920）；iOS Safari／舊款 Android 的 Web Worker（module）、WebAssembly 記憶體、是否會被系統殺掉，請實測。太慢或當掉的話，可以把輸出尺寸調小（例如 720×1280）。
 - [ ] **真機分享**：行動版 Safari / Chrome 的 `navigator.share({ files })`（選 Instagram）。桌面 Chromium 的下載流程已實測；分享流程只有單元測試。
 - [ ] **真的 Gemini**：判斷準確度、詩意色名品質、月總結是否落在 80–120 字（不合格會退回示意文字，並且不快取）。
-- [ ] **真的 Cloudflare**：D1/R2/KV remote、Workers Assets 的路由（本地 wrangler dev 已驗證）、`/api/font` 從 Cloudflare 邊緣向 Google Fonts 取 TTF（本地沙盒可以；正式環境請看產出的圖有沒有豆腐字）。
+- [ ] **真的 Cloudflare**：D1/KV remote、Workers Assets 的路由（本地 wrangler dev 已驗證）、`/api/font` 從 Cloudflare 邊緣向 Google Fonts 取 TTF（本地沙盒可以；正式環境請看產出的圖有沒有豆腐字）。
 - [ ] **Worker CPU**：免費方案每次請求 10 ms。API 都很輕，但『上傳照片』要做 base64 與資料庫寫入，若偶爾出現 1102 錯誤請告訴我。
 - [ ] **PWA**：iOS / Android 加入主畫面、離線時 App 外殼可開（各頁會顯示離線狀態，沒有獨立 offline.html）。
 - [ ] **HEIC**：非 Safari 瀏覽器無法解碼 HEIC 時，前端會送原檔——這種照片沒有主色（漸層改用今日色）。
 
 ## 5. 已知限制（之後可以做）
-- **身分只是匿名 UUID（`X-User-Id`），沒有登入或驗證**：知道網址的人都能使用、也能上傳照片到你的 R2；知道某個 UUID 就能讀寫那位使用者的資料。自己用建議別公開網址或用 Cloudflare Access（免費）保護；對大眾開放前需要真正的登入（階段二）。
-- KV 免費方案每天只能寫 1,000 次（限流、字型與月回顧快取會寫）：個人使用足夠，多人會先碰到。
+- **身分只是匿名 UUID（`X-User-Id`），沒有登入或驗證**：知道網址的人都能使用、也能上傳照片到你的 KV；知道某個 UUID 就能讀寫那位使用者的資料。自己用建議別公開網址或用 Cloudflare Access（免費）保護；對大眾開放前需要真正的登入（階段二）。
+- KV 免費方案：每天只能寫 1,000 次、儲存 1 GB（照片、限流、字型與月回顧快取都在這裡）：個人使用足夠，多人或長期累積會先碰到；滿了要清理舊照片（目前沒有刪除功能）或升級方案。
 - 限流用 KV 計數器，非原子（近似）；要嚴格限流請改 Durable Object 或 Rate Limiting binding。
 - satori / resvg-wasm 版本釘死在 0.15.2 / 2.4.0（原因見 P23），升級前要先確認 hb.wasm 的載入方式。
 - 沒有刪除照片 / 修改當天模式的功能；備註是唯一可編輯的欄位。

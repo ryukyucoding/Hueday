@@ -5,7 +5,7 @@
 ## 專案結構（npm workspaces monorepo）
 ```
 apps/web        Vue 3 + Vite + TS 前端（PWA）
-apps/api        Cloudflare Worker（Hono），D1 / R2 / KV
+apps/api        Cloudflare Worker（Hono），D1 / KV（照片也存在 KV，不用 R2——R2 需要綁卡）
 packages/core   純 TypeScript 邏輯，不可 import 任何 DOM / Vue / Worker API
 ```
 - 根目錄 `npm run build` 必須依序 build 三個 workspace；`npm test` 跑所有 vitest。

@@ -19,10 +19,6 @@ database_name = "hueday"
 database_id = "REPLACE_ME"
 migrations_dir = "migrations"
 
-[[r2_buckets]]
-binding = "PHOTOS"
-bucket_name = "hueday-photos"
-
 [[kv_namespaces]]
 binding = "CACHE"
 id = "REPLACE_ME"

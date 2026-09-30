@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { errorJson } from '../errors'
+import { getPhoto } from '../photoStore'
 
 export const photos = new Hono<AppEnv>()
 
@@ -9,9 +10,9 @@ photos.get('/:id', async (c) => {
     .bind(c.req.param('id'), c.get('userId'))
     .first<{ r2_key: string }>()
   if (!row) return errorJson(c, 404, 'not_found', '找不到照片')
-  const obj = await c.env.PHOTOS.get(row.r2_key)
+  const obj = await getPhoto(c.env.CACHE, row.r2_key)
   if (!obj) return errorJson(c, 404, 'not_found', '找不到照片')
   return new Response(obj.body, {
-    headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'private, max-age=31536000, immutable' }
+    headers: { 'Content-Type': obj.contentType, 'Cache-Control': 'private, max-age=31536000, immutable' }
   })
 })

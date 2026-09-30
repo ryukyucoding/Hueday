@@ -1,6 +1,5 @@
 export type Bindings = {
   DB: D1Database
-  PHOTOS: R2Bucket
   CACHE: KVNamespace
   GEMINI_MODEL: string
   GEMINI_API_KEY?: string

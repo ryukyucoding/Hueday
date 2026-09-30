@@ -1,5 +1,5 @@
 /**
- * 開發用：在本地 D1 / R2 塞入過去 400 天的假資料（含假照片色塊）。
+ * 開發用：在本地 D1 / KV 塞入過去 400 天的假資料（含假照片色塊；照片存在 KV）。
  *   npm run seed            # 使用者 id 預設 seed-user
  *   SEED_USER=xxx npm run seed
  * 之後開 http://localhost:5173/?uid=seed-user 即可用這個使用者瀏覽（只有 dev 模式生效）。
@@ -9,6 +9,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { getPlatformProxy } from 'wrangler'
 import { planSeed } from './seedPlan'
+import { photoKey, putPhoto } from '../src/photoStore'
 import type { Bindings } from '../src/types'
 
 const sharp = createRequire(import.meta.url)('sharp') as typeof import('sharp')
@@ -24,7 +25,7 @@ async function fakePhoto(colors: string[]): Promise<Uint8Array> {
 
 const proxy = await getPlatformProxy<Bindings>({ configPath: fileURLToPath(new URL('../wrangler.toml', import.meta.url)) })
 try {
-  const { DB, PHOTOS } = proxy.env
+  const { DB, CACHE } = proxy.env
   const has = await DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='photos'").first()
   if (!has) {
     console.error('找不到資料表，請先執行：npm run migrate:local -w apps/api')
@@ -33,7 +34,7 @@ try {
 
   // 重跑時先清掉同一位使用者的舊資料
   const old = await DB.prepare('SELECT r2_key FROM photos WHERE entry_id IN (SELECT id FROM entries WHERE user_id = ?)').bind(user).all<{ r2_key: string }>()
-  for (const r of old.results) await PHOTOS.delete(r.r2_key)
+  for (const r of old.results) await CACHE.delete(r.r2_key)
   await DB.prepare('DELETE FROM photos WHERE entry_id IN (SELECT id FROM entries WHERE user_id = ?)').bind(user).run()
   await DB.prepare('DELETE FROM entries WHERE user_id = ?').bind(user).run()
 
@@ -47,8 +48,8 @@ try {
       .run()
     for (const [i, p] of e.photos.entries()) {
       const id = `${entryId}-${i}`
-      const key = `${user}/${e.date}/${id}.jpg`
-      await PHOTOS.put(key, await fakePhoto(p.colors), { httpMetadata: { contentType: 'image/jpeg' } })
+      const key = photoKey(user, e.date, id)
+      await putPhoto(CACHE, key, (await fakePhoto(p.colors)).buffer as ArrayBuffer, 'image/jpeg')
       await DB.prepare(
         'INSERT INTO photos (id, entry_id, r2_key, dominant_colors, ai_color_name, matches_target, subject, ai_confidence, ai_mock, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'
       )

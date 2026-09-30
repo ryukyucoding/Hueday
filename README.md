@@ -44,8 +44,7 @@ flowchart LR
   UI --> C1 --> RW
   C1 -.->|共用| C2
   API --> D1[("D1<br/>entries · photos")]
-  API --> R2[("R2<br/>照片")]
-  API --> KV[("KV<br/>字型 · 月回顧 · 限流")]
+  API --> KV[("KV<br/>照片 · 字型 · 月回顧 · 限流")]
   API -->|"照片判斷 · 色名 · 月回顧"| Gemini["Gemini API"]
   API -->|"/api/font：text= 只抓用到的字"| Fonts["Google Fonts"]
   ST --> UI
@@ -59,7 +58,7 @@ flowchart LR
 
 ```
 apps/web        Vue 3 + Vite + TS 前端（PWA）；src/render/ 是瀏覽器端產圖（Web Worker）
-apps/api        Cloudflare Worker（Hono）＋ D1 / R2 / KV
+apps/api        Cloudflare Worker（Hono）＋ D1 / KV
 packages/core   純 TypeScript 邏輯（色票、抽色、漸層、統計、模板版面…）
 docs/           截圖
 scripts/        圖示、截圖、共用腳本
@@ -85,7 +84,7 @@ scripts/        圖示、截圖、共用腳本
 | 服務 | 用途 |
 | --- | --- |
 | **Gemini API** | Vision 判斷照片主體是否屬於目標顏色、詩意色名、月總結文案（`responseSchema` 結構化輸出） |
-| **Cloudflare Workers（含 Assets）/ D1 / R2 / KV** | API 與前端靜態檔、資料庫、照片儲存、字型／月回顧／限流 |
+| **Cloudflare Workers（含 Assets）/ D1 / KV** | API 與前端靜態檔、資料庫、照片／字型／月回顧／限流 |
 | **satori + resvg-wasm**（瀏覽器端） | 在 Web Worker 裡把 HTML 版面轉成 PNG |
 | **Google Fonts（CSS2 `text=`）** | 中文字型只下載用到的字（Noto Sans TC + Fraunces），快取在 KV |
 | Vue 3、Vite、vite-plugin-pwa、Hono | 前端、建置、PWA、Worker 框架 |
@@ -162,9 +161,8 @@ npm run deploy
 
 完整步驟、免費額度與注意事項見 **[apps/api/DEPLOY.md](apps/api/DEPLOY.md)**。幾件要知道的事：
 
-- R2（照片儲存）需要先在 Cloudflare 帳號綁付款方式才能啟用（用量在免費額度內不會扣款）。
+- **不需要綁信用卡**：照片存在 KV（不用 R2——R2 需要綁付款方式才能啟用）。代價是 KV 免費額度：1 GB 儲存、每天 1,000 次寫入（上傳一張照片約 2–4 次），個人使用足夠。
 - **目前沒有登入**，知道網址的人都能使用；自己用建議不要公開網址，或用 Cloudflare Access 保護。
-- KV 免費方案每天只能寫 1,000 次，個人使用足夠。
 
 ## 專案文件
 

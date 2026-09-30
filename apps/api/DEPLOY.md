@@ -10,7 +10,7 @@
 
 - **Node.js 22 以上**（`node -v` 確認；舊版會讓 wrangler 等套件裝不起來）。
 - 一個 Cloudflare 帳號（免費即可）。
-- **R2（照片儲存）需要先在帳號綁一張付款方式才能啟用**（據我所知；免費額度 10 GB，用量在額度內不會扣款）。如果你完全不想綁卡，照片可以改存 D1，需要改程式，跟我說。
+- **不需要綁信用卡**：照片存在 KV（不用 R2；R2 需要綁付款方式才能啟用）。
 - （選配）Gemini API key：到 Google AI Studio 申請。沒有也能用，AI 結果會是示意資料。
 
 ## 步驟
@@ -24,11 +24,10 @@ npx wrangler login
 ```
 
 1. 建立 D1：`npx wrangler d1 create hueday` → 把印出的 `database_id` 填進 `apps/api/wrangler.toml`
-2. 建立 R2：`npx wrangler r2 bucket create hueday-photos`
-3. 建立 KV：`npx wrangler kv namespace create CACHE` → 把印出的 `id` 填進 `wrangler.toml`
-4. 建立資料表：`npx wrangler d1 migrations apply DB --remote`
-5. （選配）Gemini：`npx wrangler secret put GEMINI_API_KEY`，貼上金鑰
-6. 回到根目錄部署（會依序 build core → 前端 → 部署 Worker 與靜態檔）：
+2. 建立 KV（也用來存照片）：`npx wrangler kv namespace create CACHE` → 把印出的 `id` 填進 `wrangler.toml`
+3. 建立資料表：`npx wrangler d1 migrations apply DB --remote`
+4. （選配）Gemini：`npx wrangler secret put GEMINI_API_KEY`，貼上金鑰
+5. 回到根目錄部署（會依序 build core → 前端 → 部署 Worker 與靜態檔）：
 
 ```bash
 cd ../..
@@ -45,13 +44,13 @@ npm run deploy
 | --- | --- | --- |
 | Worker 請求 | 10 萬次／天 | 只有 `/api/*` 算；靜態檔（前端、wasm）免費、不限次數 |
 | Worker CPU | 每次請求 10 ms | API 都很輕，但「上傳照片」要做 base64 與資料庫寫入，若偶爾出現 1102（超過 CPU 限制）錯誤，可把 Gemini 相關邏輯拆開或升級方案 |
-| KV 寫入 | **1,000 次／天** | 限流計數、字型與月回顧快取都會寫 KV。一個人用很夠；多人使用會先碰到這個上限 |
+| KV 寫入 | **1,000 次／天** | 照片、限流計數、字型與月回顧快取都寫 KV。上傳一張照片約 2–4 次寫入，個人每天上傳幾十張沒問題；多人使用會先碰到這個上限 |
+| KV 儲存 | **1 GB** | 照片都存在這裡（已壓到長邊 1600px，約 200–700 KB），大約可存 1,500–5,000 張；滿了需要清理或升級 |
 | D1 | 5 GB、每天 500 萬次讀取 | 夠用 |
-| R2 | 10 GB | 夠用（照片已壓到長邊 1600px） |
 
 ## 注意事項
 
-- **目前沒有登入**，身分只是瀏覽器產生的匿名 UUID。**知道網址的人都能使用、也能上傳照片到你的 R2**。自己用的話建議不要公開網址；或用 Cloudflare Access（免費，50 人以內）把這個 Worker 保護起來。上線給一般大眾之前需要補登入。
+- **目前沒有登入**，身分只是瀏覽器產生的匿名 UUID。**知道網址的人都能使用、也能上傳照片到你的 KV**。自己用的話建議不要公開網址；或用 Cloudflare Access（免費，50 人以內）把這個 Worker 保護起來。上線給一般大眾之前需要補登入。
 - 限流用 KV 固定視窗計數器（每位使用者每分鐘：上傳 10、Gemini 20、字型 30）。KV 是最終一致且非原子操作，這是「擋一般濫用」的近似限流；要嚴格限流請改用 Durable Object 或 Cloudflare Rate Limiting binding。
 - 第一次分享時瀏覽器會下載約 1.4 MB 的產圖引擎（wasm），之後會快取。
 - `ALLOW_SIMULATE` 只給本地開發用（`npm run dev` 已帶 `--var ALLOW_SIMULATE:1`），**不要**在正式環境設定。沒設定時 `X-Simulate` header 會被完全忽略（有測試）。
@@ -64,5 +63,5 @@ npm run deploy
 | `Unknown arguments: #, ...` | 你把指令連同後面的 `# 註解` 一起貼進 macOS 的 zsh 了。zsh 互動模式不把 `#` 當註解，請只貼指令本身。 |
 | `npm warn EBADENGINE ... required: { node: '>=22' }` 之後 `tsc: command not found` | Node 版本太舊，安裝沒完成。升級到 Node 22+ 後，刪掉 `node_modules` 重新 `npm install`。 |
 | `npm error ECONNRESET` | 網路中斷，安裝不完整。直接重跑 `npm install`（可能要重試幾次）。 |
-| `Please enable R2 through the Cloudflare Dashboard [code: 10042]` | 帳號還沒啟用 R2。到 Cloudflare Dashboard → R2 Object Storage 啟用（需要綁付款方式，用量在免費額度內不會扣款）。 |
+| `Please enable R2 through the Cloudflare Dashboard [code: 10042]` | 你用到舊版文件的 R2 步驟了。現在照片存在 KV，**不需要 R2、也不用綁卡**；請更新到最新的程式碼（`git pull`）並略過建立 R2 的指令。 |
 | `Invalid property: databaseId => Invalid uuid` | `wrangler.toml` 的 `database_id` 還是 `REPLACE_ME`，先完成第 1 步並填入。 |
